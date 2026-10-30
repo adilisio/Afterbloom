@@ -1,0 +1,154 @@
+# Every voiced line in the game.  Format:  id | speaker | text
+# {addr} / {Addr} = how Tuppence addresses the player (sir, ma'am, boss, captain); one audio file per variant.
+
+# ---- Cold open (Rory, older, narrating) ----
+co_1 | narrator | Everybody in Larkhaven remembers what they were doing that morning. The comet had gone by the night before, and the whole town had been up on the bluff with blankets and thermoses, pointing at the sky.
+co_2 | narrator | I was nineteen. I worked the early shift at the radio station, spinning records nobody was awake to hear.
+co_3 | narrator | It was a Saturday. The air smelled like toast and salt water. Halcyon had promised us that tomorrow would be gentle.
+co_4 | narrator | Nobody told us how fast tomorrow would come.
+
+# ---- Chapter 1: Good Morning ----
+tp_wake_1 | tuppence | Good morning, {addr}! Up and at 'em! It's a quarter to nine, the kettle's on, and the sun has very kindly turned up for work.
+tp_wake_2 | tuppence | There we are. Splendid! The comet's been and gone, and not a single scorch mark on the lawn. I checked. Twice.
+tp_addr_q | tuppence | Now. I had a firmware update overnight, and it's wiped my little preference card. How would you like me to address you this morning?
+tp_addr_ok | tuppence | Very good, {addr}. Noted, filed, and engraved upon my heart. Well. Upon my memory drum. Same thing, really.
+tp_how | tuppence | Oh, tip-top, {addr}! I polished the banister twice and alphabetised the spice rack. Cardamom is now very upset with cinnamon.
+tp_today | tuppence | Your sister telephoned last night. Miss June is volunteering at the Shelter Nine open house, up on the bluff. She made me promise you'd stop by. I promised on your behalf. I do hope that's all right.
+tp_tea | tuppence | Tea! The finest word in any language. One moment.
+tp_tea_done | tuppence | Milk, no sugar, stirred clockwise. Anticlockwise is for barbarians.
+tp_joke_1 | tuppence | Why did the robot cross the road? Because he was programmed by a chicken. ... I'll see myself out.
+tp_joke_2 | tuppence | What does a valet say when he's finished folding the laundry? Crease and desist! Ha! That one's my own.
+tp_joke_3 | tuppence | I tried to write a joke about the comet. But it went right over everyone's heads.
+tp_bye | tuppence | Right you are. I'll be about, should you need me.
+tp_bark_m1 | tuppence | Do mind the rug, {addr}. I've only just fluffed it.
+tp_bark_m2 | tuppence | The toast is ready whenever you are. I'm told it's excellent toast.
+tp_bark_m3 | tuppence | Oh, I do love this song.
+tp_bark_tv | tuppence | Hal Brightwater. Such a reassuring jaw.
+tp_bark_mag | tuppence | Ooh, reading material! Don't tell me how it ends.
+tp_bark_photo | tuppence | Ah, the beach at Gull Point. Miss June buried you up to the neck that day. You were furious.
+tp_door | tuppence | That'll be the door! I'd get it myself, but Halcyon frowns on valets answering for their owners. Something about liability.
+
+rg_1 | registrar | Good morning! Halcyon Assured Shelter Services. I am Registrar Unit Nine. This residence is pre-registered for a place in Shelter Number Nine. Congratulations!
+rg_2 | registrar | I just need to confirm a few details for our records. It will only take a moment. Question one.
+rg_q1 | registrar | In an emergency, which do you reach for first? The flashlight? The first aid kit? Or the family photographs?
+rg_q2 | registrar | Question two. A stranger asks to share your shelter cot. Do you share it, politely decline, or ask whether they've brought biscuits?
+rg_q3 | registrar | Final question. Tomorrow will be: better, the same, or gentle?
+rg_ack_1 | registrar | Noted.
+rg_ack_2 | registrar | How refreshing.
+rg_ack_3 | registrar | Excellent answer. All answers are excellent.
+rg_end | registrar | Wonderful. Your registration is confirmed. Resident number thirty-one. Should the sirens sound, please proceed calmly to Shelter Number Nine. Have a gentle day!
+tp_after_rg | tuppence | Resident thirty-one! How exciting. They don't let valets in, you know. Appliances must remain above ground. I'd only take up space.
+tp_phone | tuppence | Telephone! I'll wager that's Miss June. She does like to ring when you're in your slippers.
+
+jn_1 | june | Hey, sleepyhead! You actually picked up. Tuppence owes me a quarter.
+jn_2 | june | Listen, are you watching the news? Channel four. The fishermen are saying there's purple dust all over the water off the point. Like glitter. It's so weird.
+jn_3a | june | That's what they're saying. Probably the comet. Rory at the station thinks it's the coolest thing that's ever happened in this town.
+jn_3b | june | Since seven! I'm handing out Halcyon pamphlets and tiny paper cups of lemonade. Living the dream.
+jn_4 | june | Come up when you're dressed, okay? I'll save you a lemonade. And bring Tuppence's cookies. He made, like, a hundred.
+jn_5 | june | Wait. Hang on. The sirens up here just... that's not the drill. Somebody's... Get up here. Get up here right now, okay? I love you. Run.
+
+tv_m1 | anchor | Good morning, Larkhaven! It's Saturday, October fourteenth, and this is Larkhaven Morning. I'm Hal Brightwater.
+tv_m2 | anchor | What a night it was on the bluff! Over eight hundred of you turned out for the Larkspur Comet, and the Rotary Club reports they ran out of cocoa by ten o'clock.
+tv_m3 | anchor | On the weather front: sunny skies, a high of sixty-four, and a light breeze off the water. A picture-perfect autumn day.
+tv_m4 | anchor | And a curious one from the harbor this morning. Fishing crews off Gull Point are reporting a fine violet dust on the water. Experts at the state university say it's very likely harmless comet debris. Pretty, though.
+tv_m5 | anchor | And don't forget: Halcyon Shelter Number Nine opens its doors to residents today, for tours and lemonade. Stop by and say hello to the volunteers.
+tv_ad_1 | announcer | Is your home ready for tomorrow? The Halcyon Starlight console television. Brighter pictures. Warmer evenings. Halcyon. Tomorrow, made gentle.
+tv_ad_2 | announcer | Kids! Start your day with a crunch you can hear from the moon! Sunny Crunch! Now with more sunshine!
+tv_ad_3 | announcer | Meet the Valet Mark Two. He cooks. He cleans. He never forgets a birthday. The Halcyon Valet. A gentleman in every home.
+tv_e1 | anchor | We interrupt this program. This is a civil defense emergency. This is not a test.
+tv_e2 | anchor | A dense violet cloud is moving inland from the ocean at great speed. All residents of Larkhaven must proceed immediately to their assigned Halcyon shelter.
+tv_e3 | anchor | Do not stop for belongings. Do not attempt to drive. Cover your nose and mouth. Proceed to your shelter now.
+tv_e4 | anchor | I... I can see it from the studio window. Go. Please. Go now.
+
+dc_1 | dot | Good morning, Larkhaven! Dot Calloway here on Larkhaven Free Radio, thirteen-forty on your dial. What a night on the bluff, huh? I saw the comet, and I'll tell you, it saw me too.
+dc_2 | dot | Here's a little something to go with your eggs. The Halcyon Strings, with Lou Marten. Sunday Kind of Gentle.
+dc_3 | dot | That was Benny Cole! Our junior man Rory says he's playing that one again at noon, whether you like it or not.
+dc_4 | dot | Halcyon Shelter Nine is open for tours today, folks. Lemonade, pamphlets, and a very polite robot at the door.
+dc_5 | dot | We've had calls about pretty purple dust down at the harbor. Folks, it's comet dust. Please don't eat it.
+dc_6 | dot | Coming up, Rosa Dean, A Little Lantern. Grab your sweetheart. Or your coffee. Whichever's closer.
+
+# ---- Chapter 2: The Bloom ----
+tp_e1 | tuppence | Oh dear. Oh dear, oh dear, oh dear.
+tp_e2 | tuppence | {Addr}, you heard the man! Shelter Nine, right now. Out the front door, up Gull Lane, and along the bluff road!
+tp_e3 | tuppence | Oh, I wish I could. Residents only, I'm afraid. But I'll see you to the door. Now go! Shoo!
+tp_e4 | tuppence | Please, {addr}! Go! There isn't time!
+tp_e5 | tuppence | Don't you dare dawdle! The kettle and I will be perfectly fine!
+tp_dash_1 | tuppence | Keep going! I'm right behind you! Well. Slightly above and behind you.
+tp_dash_2 | tuppence | Mind the car! Oh, poor Mister Abernathy's Buick.
+tp_dash_3 | tuppence | Faster, {addr}! It's coming across the water!
+tp_dash_4 | tuppence | Up the hill! You can see the gate from here!
+tp_gate | tuppence | In you go! I'll keep the kettle warm! I'll keep everything warm! Go on!
+cd_1 | civil | Attention. Attention. This is Larkhaven Civil Defense. Proceed on foot to your assigned shelter. Do not use vehicles.
+cd_2 | civil | Shelter Number Nine residents, proceed up the bluff road. Shelter Nine doors will close in two minutes.
+cd_3 | civil | Cover your nose and mouth. Do not look directly at the cloud.
+cd_4 | civil | Shelter Nine doors closing in one minute.
+cd_5 | civil | Thirty seconds.
+pa_gate_1 | pa | Welcome to Halcyon Assured Shelter Number Nine. Please proceed inside in an orderly fashion.
+pa_gate_2 | pa | Doors closing. Please stand clear.
+
+# ---- Chapter 3: Shelter No. 9 ----
+pa_s1 | pa | Doors sealed. Air scrubbers engaged. Thank you for choosing Halcyon.
+pa_s2 | pa | Residents, please proceed to the Rest Ward and locate your assigned bunk. Your bunk number matches your resident number.
+pa_s3 | pa | The Somnol rest cycle will begin shortly. Somnol is safe, restful, and Halcyon approved. You will wake when the surface is gentle again.
+jn_6 | june | Hey. Hey, it's me. I'm in Ward B, they split us up by number. You made it. You actually made it. Where's Tuppence?
+jn_7 | june | Of course he did. Okay. Okay. We'll go get him when this is over. Sleep tight, okay? See you on the other side.
+pa_s4 | pa | Somnol cycle beginning. Sweet dreams.
+pa_m1 | pa | Somnol cycle, day four hundred and twelve. Surface status: unsafe.
+pa_m2 | pa | Day one thousand, nine hundred and six. Surface status: unsafe.
+pa_m3 | pa | Warning. Ward A rest system fault. Resident thirty-one: wake sequence failed.
+pa_m4 | pa | Day four thousand and three. Surface status: tolerable. Wake sequence initiated.
+rr_frag | rory | this is Larkhaven Free Radio... if anybody's out there... anybody at all...
+pa_w1 | pa | Good morning, resident thirty-one. You have rested for eleven years, two months, and four days. Halcyon thanks you for your patience.
+pa_w2 | pa | Warning. Shelter integrity compromised. Main power offline. Please proceed to the exit in an orderly fashion.
+wd_1 | warden | Warden's log. Year six. The Somnol reserves are failing. We're waking people up in batches. Some of them don't... some of them don't take it well.
+wd_2 | warden | Year eight. Ward A won't respond to the wake sequence. Thirty-one's sister won't leave the bunk. I told her we'd keep trying.
+wd_3 | warden | Year nine. We heard a radio signal. Music. Someone's alive out there, at the lighthouse. We're going. God forgive me, we're leaving Ward A. Sealing it, so nothing gets in. There's a pistol in my locker, if anyone ever needs it.
+pa_w3 | pa | Main power restored. Opening shelter door. Please mind the gap. Have a gentle day.
+
+# ---- Chapter 4: Afterbloom ----
+tp_r1 | tuppence | Hmm, hmm, hmm. A little more on the newel post. There.
+tp_r2 | tuppence | A visitor? Oh. Oh my goodness. Oh my goodness gracious. {Addr}? Is that... is that really you?
+tp_r3 | tuppence | Eleven years, two months and five days! I kept the kettle warm! Well. I kept it on. I've been through four hundred and twelve kettles.
+tp_r4a | tuppence | Where else would I be? Someone had to mind the house. I've dusted every single day. Twice on Sundays. The dust has been very persistent.
+tp_r4b | tuppence | The cloud came in, and then it went quiet. Terribly quiet. The neighbours went... strange. Crystal-ish. I don't like to talk about it. I've mostly been talking to the hydrangeas.
+tp_r5 | tuppence | But where's Miss June? Isn't she with you?
+tp_r6 | tuppence | The lighthouse! Why, that's where the music comes from! Every evening, a young man on the wireless, playing records. I listen to him while I polish.
+tp_r7 | tuppence | Wait right there. I've been saving something. Your pocket radio! I've kept the batteries fresh. Well. I've replaced them three hundred times.
+tp_r8 | tuppence | Shall we go and find her? I'm coming with you this time. No arguments. I've been practising with my zapper on the hedge.
+tp_c1 | tuppence | Do you know, I haven't been past the garden gate in eleven years. This is terribly exciting.
+tp_c2 | tuppence | Mind yourself, {addr}. Those crystal fellows bite.
+tp_c3 | tuppence | That used to be Marlow's Diner. Best pie in the county, I'm told. I can't eat pie.
+tp_c4 | tuppence | Splendid shot!
+tp_c5 | tuppence | Got him!
+tp_c6 | tuppence | Take that, you overgrown geode!
+tp_c7 | tuppence | Zap!
+tp_c8 | tuppence | Oh, I do love a good walk.
+tp_c9 | tuppence | {Addr}, you're hurt! Shall I make some tea? Tea fixes nearly everything.
+tp_c10 | tuppence | It's getting dark. I've a little light in my head, you know. Built in. Very handy.
+tp_c11 | tuppence | Rain! Excellent for the garden. Terrible for my joints.
+tp_c12 | tuppence | Oh, I don't like this purple weather one bit. Stay close.
+tp_c13 | tuppence | Ooh, a magazine! You read, I'll keep watch.
+tp_c14 | tuppence | Shall I hum something? No? Quite right. I'm terribly off-key.
+tp_c15 | tuppence | There it is! The lighthouse! Oh, it's still standing!
+tp_c16 | tuppence | Look out! Something nasty, just over there!
+tp_c17 | tuppence | Is everyone still in one piece? Splendid. Me too. Mostly.
+tp_c18 | tuppence | That's the Civil Defense post. They kept all sorts of useful things in there. Rifles, mostly.
+tp_c19 | tuppence | Good heavens. That's a big one. That's a very big one.
+tp_tea_after | tuppence | One cup of tea, coming up. I've been saving the good leaves.
+tp_tea_wait | tuppence | The kettle needs a little while, {addr}. Even I can't rush a proper brew.
+tp_how_after | tuppence | Better than I've been in eleven years! I have someone to fuss over again.
+
+rr_1 | rory | Good evening, or morning, or whatever it is out there. This is Rory Tuck, and you're listening to Larkhaven Free Radio, broadcasting from the old lighthouse. Same as every day for, uh, nine years now.
+rr_2 | rory | If you can hear this, you're not alone. We've got a little community up here. Fresh water, a garden, a really bad piano. Come to the lighthouse. Follow the coast road north. And watch out for the big ones.
+rr_3 | rory | Here's one for anybody who remembers Saturday mornings. The Mel Archer Trio. Coffee for Two.
+rr_4 | rory | That was Patsy Vale. Moonlight on Gull Lane. My mom used to sing that one to me. Badly. I miss that.
+rr_5 | rory | Okay, weather report. I looked out the window. It's... weather. Some of it's purple. Stay inside if it's purple.
+rr_6 | rory | Message board time. To Ellen from the Fairview farm: your brother made it, he's here, he says stop worrying. And to anyone from Shelter Nine: we kept your names. We kept every single one.
+rr_7 | rory | Benny Cole and the Satellites. Rocket Ride Shuffle. Turn it up. The husks hate it. I don't actually know that. But I like to think so.
+rr_8 | rory | This is Rory Tuck, Larkhaven Free Radio. Keep your head down and your radio on.
+rr_9 | rory | And a special one tonight. A message from June, who has asked me to read this every single night for two years. To the sleeper in Ward A: if you ever wake up, I'm at the lighthouse. Follow the music. I left the light on. ... She's a good egg, June. Okay. Here's Rosa Dean.
+rr_10 | rory | Here's Dusty Carlyle, Highway Seventeen. For everybody out there walking.
+rr_i1 | rory | Whoa. Whoa! Was that you? You took down the Thornback? That thing's been sitting on our doorstep for a month!
+rr_i2 | rory | Hang on, who... wait. A robot butler and... Ward A? You're the sleeper? You're June's... JUNE! June, get down here! Now!
+jn_end | june | Rory, what is it, what's... Oh. Oh my god. Open the door. Open the door, Rory!
+tp_end | tuppence | Miss June! I kept the kettle warm!

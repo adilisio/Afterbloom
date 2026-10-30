@@ -1,0 +1,25 @@
+# Godot
+.godot/
+*.translation
+export_credentials.cfg
+
+# Build output
+build/
+
+# Screenshots from the test harness
+shots/
+
+# Python tooling
+tools/.venv/
+__pycache__/
+*.pyc
+
+# Third-party SoundFont used to render music (download separately, see AGENTS.md)
+tools/audio/sf/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.env
