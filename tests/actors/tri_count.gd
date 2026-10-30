@@ -44,7 +44,10 @@ func _count_self(n: Node) -> int:
 
 
 func _ready() -> void:
-	var models: Array[Node3D] = [TuppenceModel.new(), RegistrarModel.new(), MiteModel.new(), HuskModel.new(), ThornbackModel.new(), GullModel.new()]
+	var models: Array[Node3D] = [TuppenceModel.new(), RegistrarModel.new(), MiteModel.new(), HuskModel.new(), ThornbackModel.new(), GullModel.new(),
+		HumanModel.make_preset("june"), HumanModel.make_preset("rory"), HumanModel.make_preset("warden")]
+	for i in 12:
+		models.append(HumanModel.random_townsperson(100 + i))
 	for m in models:
 		add_child(m)
 	await get_tree().process_frame

@@ -15,6 +15,7 @@ Triangle counts (from `tests/actors/tri_count.tscn`):
 | RegistrarModel | ~20.6k |
 | ThornbackModel | ~13.6k |
 | HuskModel | ~7.2–8.2k (varies by variant) |
+| HumanModel | ~6.3–7.9k, average ~7.1k (varies by outfit and hair) |
 | MiteModel | ~4.3k |
 | GullModel | ~1.2k |
 
@@ -128,6 +129,87 @@ About 1.7 m tall.
 - `get_head_node()`
 - Extra: `set_move_speed(v)` spins the wheels, and the signal `gesture_finished(name)`.
 
+## `HumanModel`: 1967 townsfolk
+A stylized, illustrated look: sculpted smooth forms, big readable eyes and painted shading in the skin's vertex colours. About 1.3–1.9 m tall.
+
+Unlike the other models, it is **skinned**: one `Skeleton3D` and one mesh per person, with no seams at the joints and about 10 surfaces instead of dozens of nodes. Meshes, skins and materials are cached and shared. Legs and arms use two-bone IK, so feet stay planted and hands reach what they should.
+
+### Configuring one
+Set properties or pass them to `setup({...})` **before** `add_child`. Calling `setup()` later rebuilds the model.
+
+| Property | Values |
+|---|---|
+| `sex` | `"m"`, `"f"` |
+| `age` | `"child"` (8–12), `"adult"`, `"elder"` |
+| `build` | `"slim"`, `"average"`, `"heavy"` |
+| `height` | Metres to the crown. 0 = a default for the sex and age. |
+| `skin_tone` | 0 (very fair) .. 1 (deep brown) |
+| `hair_style` | `"short"`, `"side_part"`, `"mop"`, `"bob"`, `"ponytail"`, `"bun"`, `"curly"`, `"balding"`, `"bald"` |
+| `hair_color`, `eye_color` | `Color` |
+| `outfit` | `"cardigan"`, `"shirt_tie"`, `"dress"`, `"sweater"`, `"sweater_vest"`, `"overalls"`, `"fisherman"`, `"warden"` (Civil Defense: helmet and armband), `"halcyon"` (teal and cream with the amber patch) |
+| `bottom` | `""` = the outfit's default, or `"slacks"`, `"skirt"`, `"shorts"` |
+| `top_color`, `shirt_color`, `bottom_color`, `trim_color`, `accent_color`, `shoe_color`, `hat_color` | `Color`. Alpha 0 (the default) keeps the outfit's own colour. `accent_color` is the tie, sash, armband or scarf; on a `sweater_vest` it also adds a tie. |
+| `pattern` | `""`, `"gingham"`, `"floral"`, `"dots"`, `"plaid"`, `"argyle"` |
+| `hat` | `"none"`, `"fisherman"`, `"headscarf"`, `"helmet"`, `"peaked"` |
+| `glasses`, `glasses_style` | `bool`; `"round"` or `"square"` |
+| `headphones`, `sash`, `lipstick`, `blanket` | `bool` |
+| `facial_hair` | `"none"`, `"moustache"` |
+| `dirty` | Eleven years later: faded, stained clothes and grimy skin. Change it any time with `set_dirty(b)`. |
+| `mood` | Resting expression, as in `set_expression`. |
+| `posture` | `"normal"`, `"proud"`, `"shy"`, `"stoop"` |
+| `idle_style` | Resting arms. -1 = from the seed, 0 relaxed, 1 hands clasped in front, 2 behind the back, 3 folded, 4 in pockets, 5 on hips. |
+| `seat_height` | Seat or mattress height above the model's feet, in metres. |
+| `seed_value` | Animation desync and small variations. 0 = random. |
+
+### Making people
+- `HumanModel.make_preset("june"|"rory"|"warden") -> HumanModel`
+- `HumanModel.random_townsperson(seed) -> HumanModel` and `HumanModel.random_params(seed) -> Dictionary`. Deterministic. Body shape and outfit come from `CROWD_TEMPLATES` (23) templates, so a crowd shares meshes; colours, skin, height and mood come from the full seed, so nobody matches.
+- `HumanModel.make_prop("mug"|"pamphlets"|"radio"|"clipboard") -> Node3D`, ready for `hold()`.
+
+### Named characters
+- **June** (`june`): the player's younger sister, early 20s, warm and teasing. Slim, 1.64 m, fair skin, green eyes, an auburn ponytail with a side-swept fringe. Butter-yellow knit cardigan over a white blouse, navy A-line skirt, oxblood flats, and the teal Halcyon open-house volunteer sash with an amber rosette. Soft lipstick, a resting smile, an upright stance.
+- **Rory** (`rory`): 19, the junior radio DJ, nervous and sweet. Lanky, 1.80 m, a dark brown mop with a fringe, brown eyes, round tortoiseshell glasses. A mustard-and-brown argyle sweater vest over a pale blue shirt with a slim maroon tie, brown slacks, and headphones resting around his neck. Shoulders a little forward, hands clasped in front.
+- **Warden Haskell** (`warden`): 50s, runs Shelter No. 9. Heavy, 1.78 m, grey short hair and a grey moustache, grey-blue eyes. Halcyon shelter uniform in teal with cream collar, cuffs and piping, the amber emblem patch on his left breast, a peaked cap with a brass badge. Stands proud with his arms folded.
+
+### API
+| Call | Notes |
+|---|---|
+| `set_move_speed(mps)` | Metres per second. About 1.3 walks, 3.5+ runs. The parent moves the root. |
+| `set_talking(b)`, `is_talking()` | Jaw and lips move in syllable-like bursts, the head bobs, and one hand makes occasional beats. |
+| `set_expression(name)` | `"neutral"`, `"happy"`, `"worried"`, `"scared"`, `"sad"`. Blends over about 0.3 s. |
+| `play_gesture(name) -> float`, `is_gesturing()` | Returns the duration; an unknown name returns 0 with a warning. Emits `gesture_finished(name)`. |
+| `look_at_point(world_pos)`, `clear_look()` | Eyes lead and the head follows. Head yaw ±69°, pitch -40° to +32°. Eyes add ±29° and -22° to +18°. A target far behind them is given up on. |
+| `set_pose(name, instant := false, seat := -1.0)`, `get_pose()` | `"stand"`, `"sit"`, `"lie"`, `"sit_ground"`, `"cower"`. Use `instant` when placing NPCs. |
+| `set_panic(b)` | Scared face and shaking. Standing still, hands to the chest. Running, flailing arms and glances back. Lasts until turned off. |
+| `set_blanket(b)` | Shows a blanket while lying down. |
+| `hold(node, "r"\|"l", style := "") -> Node3D` | The node's origin becomes the grip and it stays upright. Style is `"front"`, `"carry"` or `"chest"`; otherwise it comes from the node's `hold_style` meta. `grip_r` and `grip_curl` metas are optional. Returns whatever was in that hand before. |
+| `release("r"\|"l") -> Node3D`, `get_held(side)` | Removes it from the hand; the caller owns it. |
+| `get_head_node()`, `get_hand_node(side)` | Follow the bones. Good for dialogue cameras. |
+| `get_height()`, `get_capsule() -> Vector2(radius, height)`, `make_collision_shape()` | For a controller. The model has no physics of its own. |
+
+Gesture durations in seconds: `wave` 2.6, `point` 2.2 (toward the look target if there is one), `nod` 1.1, `shrug` 1.8, `hug_self` 3.0, `beckon` 2.4, `laugh` 2.2, `sip` 2.8 (with something in a hand), `gasp` 2.0, `shake_head` 1.4.
+
+### Placing seated and lying people
+The root stays on the floor under the pelvis.
+- **`sit`:** hips at `seat_height` plus the flesh under them. Put the root about 0.15–0.25 m behind the seat's front edge. Feet reach for the floor and dangle if the seat is too tall. The Poly Haven `painted_wooden_bench` seat is about 0.445 m.
+- **`lie`:** on the back with the **head toward +Z** and feet toward -Z, on a mattress at `seat_height`. The root is under the pelvis, so a 2 m bed wants the root about 0.8 m from the headboard end.
+- **`sit_ground`:** on the floor, either knees up with arms around them or leaning back on the hands, picked from the seed.
+- **`cower`:** crouched with hands over the head. The feet stay on the floor at the root.
+
+### Performance
+A crowd of 30, all on screen, costs about **1.1–1.2 ms per frame** on the bare test stage (RTX 4060 laptop at 1440p, vsync off, sun shadows on). `_update` takes about 43 µs per person at full detail.
+
+The model updates less when it matters less: every frame up to 8 m, 50 Hz to 14 m, 30 Hz with no face to 30 m, 10 Hz beyond that, and 4 Hz with no face while off screen.
+
+Building costs about 60–110 ms per **new** mesh, on the main thread. Build crowds during a load, not mid-scene. Each person draws about 10 surfaces per pass, shadows included.
+
+### Known limits
+- Lips go soft at under about 0.5 m: the head mesh has few rows there.
+- `dots`, `gingham` and `plaid` patterns break slightly where a garment turns from front to side.
+- A long gesture on a held item moves the item with the hand; nothing stops it passing through the body.
+- There is no collision with the world: hands and feet will go through furniture that isn't where the pose expects it.
+- Wrists don't twist the forearm, so extreme hand turns pinch the bare wrist a little.
+
 ## `MiteModel`: Bloom mite
 A crystalline tick or crab about 0.9 m long.
 
@@ -223,6 +305,7 @@ All tests are in `tests/actors/`. Screenshots are written to `shots/actors/`.
 - `test_husk.tscn -- --scenario=look|anim|death`
 - `test_thornback.tscn -- --only=idle|move|acts|die --part=...`
 - `test_gull.tscn`
+- `test_human.tscn -- --only=gallery|presets|faces|expr|poses|walk|gestures|outfits|crowd|dirty|panic|api|world|light|perf`. Writes `shots/human_*.png`. `api` prints PASS or FAIL lines, `perf` prints frame costs, and `world` puts people beside real Poly Haven props.
 - `test_bloomkit.tscn`
 - `tri_count.tscn`: run headless; add `-- --detail` for a breakdown by mesh.
 - `sheet.py`: builds contact sheets (needs Pillow).
