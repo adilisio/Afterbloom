@@ -300,7 +300,7 @@ func _char() -> void:
 	var addr: String = Game.ADDR_WORDS.get(Game.addr, "sir")
 	_p("Resident No. 31 of Halcyon Assured Shelter No. 9.  Tuppence calls you \"%s\"." % addr, INK, null, 22)
 	_p("Level %d     XP %d     Next level at %s" % [Game.level, Game.xp, str(Game.XP_LEVELS[Game.level]) if Game.level < Game.XP_LEVELS.size() else "—"], INK, _font_type, 19)
-	_p("Health %d / %d     Focus %d / %d" % [int(Game.hp), int(Game.max_hp()), int(Game.focus), int(Game.max_focus())], INK, _font_type, 19)
+	_p("Health %d / %d" % [int(Game.hp), int(Game.max_hp())], INK, _font_type, 19)
 	_h("Traits", 24)
 	if Game.traits.is_empty():
 		_p("None yet.")

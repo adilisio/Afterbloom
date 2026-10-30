@@ -51,8 +51,9 @@ func build(wood: Material) -> void:
 	add_child(_dial_light)
 	player3d = AudioStreamPlayer3D.new()
 	player3d.bus = "Radio"
-	player3d.unit_size = 4.0
-	player3d.max_db = 3.0
+	player3d.unit_size = 5.5
+	player3d.volume_db = 4.0
+	player3d.max_db = 6.0
 	player3d.position = Vector3(0, 0.15, 0.1)
 	add_child(player3d)
 	use = Interactable.make(self, Vector3(0, 0.15, 0), Vector3(0.5, 0.35, 0.3), "Turn On", "Halcyon Melody Radio")

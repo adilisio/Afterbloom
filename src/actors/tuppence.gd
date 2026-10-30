@@ -183,7 +183,7 @@ func _combat() -> void:
 		if ZA.has_method("spawn"):
 			ZA.call("spawn", get_tree().current_scene, hand.global_position, best.global_position + Vector3(0, 0.6, 0))
 	Fx.sparks(get_tree().current_scene, best.global_position + Vector3(0, 0.8, 0), Vector3.UP, Color(0.5, 0.85, 1.0), 16)
-	var dmg := 28.0 * (1.6 if Game.magazines.has("tinker") else 1.0)
+	var dmg := 28.0 * (1.6 if Game.magazines.has("tinker") else 1.0) * (1.3 if Game.traits.has("loyalist") else 1.0)
 	best.call("take_hit", "torso", dmg, (best.global_position - global_position).normalized(), best.global_position + Vector3(0, 0.8, 0))
 	await get_tree().create_timer(0.6).timeout
 	model.set_eye_color(Color(1.0, 0.7, 0.3))

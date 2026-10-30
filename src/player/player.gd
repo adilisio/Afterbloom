@@ -13,6 +13,7 @@ const JUMP := 4.4
 const GRAVITY := 13.0
 const EYE := 1.62
 const CROUCH_EYE := 1.0
+const STEP := 0.36  # tallest ledge (kerb, stair, door sill) the player walks up without jumping
 const VM_LAYER := 1 << 19
 const VM_FOV := 52.0
 
@@ -32,6 +33,8 @@ var _pitch := 0.0
 var _bob_t := 0.0
 var _step_acc := 0.0
 var _crouch := 0.0
+var _crouch_held := false  # toggle-crouch state
+var _step_smooth := 0.0  # camera lag after a step-up, eased back to 0
 var _kick := Vector2.ZERO
 var _shake := 0.0
 var _was_on_floor := true
@@ -186,7 +189,16 @@ func _physics_process(delta: float) -> void:
 	var can := controls_enabled()
 	if can:
 		input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var crouching := can and Input.is_action_pressed("crouch")
+	if not can:
+		_crouch_held = false
+	elif bool(Game.settings.get("crouch_toggle", true)):
+		if Input.is_action_just_pressed("crouch"):
+			_crouch_held = not _crouch_held
+		elif Input.is_action_just_pressed("sprint") or Input.is_action_just_pressed("jump"):
+			_crouch_held = false
+	else:
+		_crouch_held = Input.is_action_pressed("crouch")
+	var crouching := _crouch_held
 	_crouch = move_toward(_crouch, 1.0 if crouching else 0.0, delta * 5.0)
 	var sprint: bool = can and allow_sprint and Input.is_action_pressed("sprint") and input.y < 0.1 and not crouching and not weapons.call("is_aiming")
 	var spd := RUN if sprint else WALK
@@ -209,6 +221,8 @@ func _physics_process(delta: float) -> void:
 	elif can and Input.is_action_just_pressed("jump"):
 		velocity.y = JUMP
 		Audio.sfx("jump", -10.0)
+	if is_on_floor() and velocity.y <= 0.0:
+		_step_up(delta)
 	move_and_slide()
 	# landing
 	if is_on_floor() and not _was_on_floor:
@@ -233,7 +247,8 @@ func _physics_process(delta: float) -> void:
 		_bob_t = lerpf(_bob_t, roundf(_bob_t / PI) * PI, delta * 4.0)
 	var bob_amt := clampf(hspeed / RUN, 0.0, 1.0) * (0.045 if sprint else 0.03)
 	var eye := lerpf(EYE, CROUCH_EYE, _crouch)
-	head.position.y = eye + sin(_bob_t * 2.0) * bob_amt * 0.6
+	_step_smooth = move_toward(_step_smooth, 0.0, delta * maxf(1.2, -_step_smooth * 10.0))
+	head.position.y = eye + sin(_bob_t * 2.0) * bob_amt * 0.6 + _step_smooth
 	head.position.x = cos(_bob_t) * bob_amt * 0.5
 	# camera kick recovery + shake
 	_kick = _kick.lerp(Vector2.ZERO, minf(delta * 9.0, 1.0))
@@ -244,6 +259,33 @@ func _physics_process(delta: float) -> void:
 	cam.rotation.y = _kick.x + sh.x
 	_hurt_cd = maxf(_hurt_cd - delta, 0.0)
 	_update_focus()
+
+
+## Walk up a short ledge in front of us: rise, check the way is clear, settle on top. The camera eases up after.
+func _step_up(delta: float) -> void:
+	var motion := Vector3(velocity.x, 0.0, velocity.z) * delta
+	if motion.length() < 0.0005:
+		return
+	var xf := global_transform
+	var col := KinematicCollision3D.new()
+	if not test_move(xf, motion, col) or col.get_normal().y >= 0.7:
+		return  # nothing ahead, or a walkable slope move_and_slide handles itself
+	var up := Vector3(0.0, STEP, 0.0)
+	if test_move(xf, up, col):
+		up = col.get_travel()
+		if up.y < 0.05:
+			return
+	var raised := xf.translated(up)
+	var fwd := motion.normalized() * maxf(motion.length(), 0.1)
+	if test_move(raised, fwd):
+		return  # taller than a step
+	if not test_move(raised.translated(fwd), -up - Vector3(0.0, 0.05, 0.0), col) or col.get_normal().y < 0.7:
+		return  # nothing to stand on up there
+	var rise := up.y + col.get_travel().y + 0.01
+	if rise < 0.02 or rise > STEP + 0.01:
+		return
+	global_position.y += rise
+	_step_smooth -= rise
 
 
 func _process(_delta: float) -> void:

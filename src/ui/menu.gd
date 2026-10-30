@@ -106,7 +106,7 @@ func _build_title() -> void:
 	vb.add_child(_button("Settings", func(): _open_settings()))
 	vb.add_child(_button("Quit", func(): get_tree().quit()))
 	var foot := Label.new()
-	foot.text = "WASD move · Mouse look · E use · Tab journal · Q SureShot · F flashlight · T radio · Esc pause"
+	foot.text = "WASD move · Mouse look · E use · Tab journal · F flashlight · T radio · Esc pause"
 	foot.add_theme_font_override("font", _font_ui)
 	foot.add_theme_font_size_override("font_size", 16)
 	foot.add_theme_color_override("font_color", Color(AMBER.r, AMBER.g, AMBER.b, 0.5))
@@ -248,6 +248,7 @@ func _build_settings() -> void:
 	_check(vb, "Fullscreen", "fullscreen")
 	_check(vb, "Subtitles", "subtitles")
 	_check(vb, "Invert mouse Y", "invert_y")
+	_check(vb, "Crouch key toggles", "crouch_toggle")
 	vb.add_child(_button("Back", func(): _close_settings()))
 	_settings.visible = false
 

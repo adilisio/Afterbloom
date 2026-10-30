@@ -14,7 +14,6 @@ var player: Player
 var hud: Hud
 var dlg: Dialogue
 var tup: Tuppence
-var sure: SureShot
 var radio: PocketRadio
 var _talk_busy := false
 var _tea_ready_at := -999.0
@@ -87,10 +86,6 @@ func run(cp: String) -> void:
 func _world(era: String) -> void:
 	world = await main.make_world(era)
 	player = main.player
-	sure = SureShot.new()
-	sure.player = player
-	if not Game.shot_args.has("nosure"):
-		world.add_child(sure)
 	radio = PocketRadio.new()
 	if not Game.shot_args.has("noradio"):
 		player.add_child(radio)
@@ -446,7 +441,10 @@ func _registrar() -> void:
 	# the registrar waits on the porch
 	var reg := RegistrarModel.new()
 	world.add_child(reg)
-	reg.global_position = home.spot("front_door_out") + Vector3(0, -0.02, 0.4)
+	# wheels on the porch deck (the deck top sits 1 cm above the floor spot; the old -0.02 sank it in)
+	var at := home.spot("front_door_out") + Vector3(0, 0, 0.4)
+	at.y = _reg_ground(at, 0.0, at.y)
+	reg.global_position = at
 	reg.rotation.y = 0.0
 	if auto:
 		get_tree().create_timer(1.0).timeout.connect(func(): home.front_door.set_open(true))
@@ -478,14 +476,90 @@ func _registrar() -> void:
 	for t in Game.traits:
 		names.append(Game.TRAITS[t].name)
 	hud.banner("TRAITS", ", ".join(names), 4.0)
-	# registrar trundles off down the path
-	var tw := create_tween()
-	tw.tween_property(reg, "global_position", home.spot("path_end") + Vector3(0, Layout.height(home.spot("path_end").x, home.spot("path_end").z) - home.spot("path_end").y, 0), 7.0)
-	reg.rotation.y = PI
-	tw.tween_callback(reg.queue_free)
+	# registrar trundles off down the path, out of the gate and away along Gull Lane
+	_registrar_leave(reg)
 	tup.go(home.spot("entry") + Vector3(-0.6, 0, -1.4), 2.0)
 	await wait(2.5)
 	tup.bark("tp_after_rg", true)
+
+
+## Drives Registrar 9 away (fire-and-forget): turns on the spot, rolls off the porch, down the steps and the
+## garden path, out through the gate, turns west along Gull Lane and is freed once out of the player's view.
+## Steering is pure pursuit over home-local waypoints with a capped turn rate; the wheels ride the highest
+## surface under the base footprint (deck, steps, path slabs, terrain, road), so nothing sinks into them.
+func _registrar_leave(reg: RegistrarModel) -> void:
+	var home := world.home
+	# home-local (x, z): porch edge, foot of the steps, path before the gate, through the gate (the fence is
+	# at z 11; its opening is x 0.67..2.3), swing west into the north lane, then far down the street
+	var route := [Vector2(1.6, 7.3), Vector2(1.6, 8.7), Vector2(1.6, 10.2), Vector2(1.6, 12.2), Vector2(1.2, 14.6), Vector2(0.2, 15.6), Vector2(-12.0, 15.6), Vector2(-85.0, 15.6)]
+	var pts: Array[Vector3] = []
+	for p: Vector2 in route:
+		pts.append(home.global_transform * Vector3(p.x, 0.0, p.y))
+	reg.clear_look()
+	var yaw := reg.rotation.y
+	var speed := 0.0
+	var y := reg.global_position.y
+	var i := 0
+	while i < pts.size():
+		await get_tree().physics_frame
+		if not is_instance_valid(reg) or not is_instance_valid(world):
+			return
+		var dt := get_physics_process_delta_time()
+		var pos := reg.global_position
+		var to := pts[i] - pos
+		to.y = 0.0
+		# tight arrival on the porch, steps and path; looser once out on the street so corners are rounded
+		if to.length() < (0.12 if i < 3 else 0.45):
+			i += 1
+			continue
+		var err := wrapf(atan2(-to.x, -to.z) - yaw, -PI, PI)
+		yaw += clampf(err, -1.4 * dt, 1.4 * dt)
+		# turn on the spot when facing well away from the next point; slow on the steps and the path
+		var vmax := 0.7 if i < 3 else 1.25
+		speed = move_toward(speed, vmax * clampf(1.0 - absf(err) / 0.6, 0.0, 1.0), 1.0 * dt)
+		pos += Vector3(-sin(yaw), 0.0, -cos(yaw)) * speed * dt
+		var ground := _reg_ground(pos, yaw, y)
+		# step up at once (never sink into a surface), settle down a step smoothly
+		y = ground if ground > y else lerpf(y, ground, 1.0 - exp(-14.0 * dt))
+		pos.y = y
+		reg.global_position = pos
+		reg.rotation.y = yaw
+		reg.set_move_speed(speed / 1.25)
+		if i >= 4 and _reg_out_of_view(reg):
+			break
+	if is_instance_valid(reg):
+		reg.queue_free()
+
+
+## Highest world surface (layer 1) under the registrar's wheelbase at pos facing yaw, or fallback.
+func _reg_ground(pos: Vector3, yaw: float, fallback: float) -> float:
+	var space := world.get_world_3d().direct_space_state
+	var f := Vector3(-sin(yaw), 0.0, -cos(yaw))
+	var r := Vector3(-f.z, 0.0, f.x)
+	var best := -INF
+	for o: Vector2 in [Vector2.ZERO, Vector2(0.22, 0.27), Vector2(0.22, -0.27), Vector2(-0.22, 0.27), Vector2(-0.22, -0.27), Vector2(0.22, 0.0), Vector2(-0.22, 0.0)]:
+		var p := pos + f * o.x + r * o.y
+		var q := PhysicsRayQueryParameters3D.create(p + Vector3(0, 0.6, 0), p + Vector3(0, -2.5, 0), 1)
+		var hit := space.intersect_ray(q)
+		if not hit.is_empty():
+			best = maxf(best, (hit.position as Vector3).y)
+	return best if best > -INF else fallback
+
+
+func _reg_out_of_view(reg: Node3D) -> bool:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return true
+	var c := reg.global_position
+	var d := cam.global_position.distance_to(c)
+	if d > 45.0:
+		return true
+	if d < 6.0:
+		return false
+	for o: Vector3 in [Vector3(0, 0.2, 0), Vector3(0, 0.9, 0), Vector3(0, 1.75, 0), Vector3(0.6, 0.9, 0), Vector3(-0.6, 0.9, 0), Vector3(0, 0.9, 0.6), Vector3(0, 0.9, -0.6)]:
+		if cam.is_position_in_frustum(c + o):
+			return false
+	return true
 
 
 func _phone_call() -> void:
@@ -814,16 +888,16 @@ func ch3_wake() -> void:
 	player.flashlight.visible = true
 	Game.toast.emit("[F] Flashlight")
 	Game.quest_start(Q_MAIN, "Follow the Music", "Ward A is empty. Everyone is gone.")
-	var note := Pickup.spawn_note(world, sh.call("spot", "bunk31_crate") + Vector3(0, 0.52, 0), "note_june", "A note from June", "june_note")
+	var note := Pickup.spawn_note(world, sh.call("spot", "bunk31_crate_top"), "note_june", "A note from June", "june_note")
 	Game.objective(Q_MAIN, "note", "Read the note by your bunk", note)
 	await taken(note)
 	Game.objective_done(Q_MAIN, "note")
 	if Reader.is_open():
 		await main.reader.closed
 	Game.objective(Q_MAIN, "office", "Find a way out — try the Warden's office", sh.call("spot", "office"))
-	var mag := Pickup.spawn_magazine(world, Vector3(218.6, Shelter_Y() + 0.82, -78.3), "astounding", 30.0)
-	Pickup.spawn_item(world, Vector3(223.2, Shelter_Y() + 0.82, -81.6), "pep_tonic", 1, "")
-	Pickup.spawn_item(world, Vector3(228.8, Shelter_Y() + 0.3, -80.2), "beans", 1, "long_life_food", "long_life_food_beans")
+	var mag := Pickup.spawn_magazine(world, sh.call("spot", "desk_top"), "astounding", 30.0)
+	Pickup.spawn_item(world, sh.call("spot", "shelf_top"), "pep_tonic", 1, "")
+	Pickup.spawn_item(world, sh.call("spot", "beans"), "beans", 1, "long_life_food", "long_life_food_beans")
 	await until_near(sh.call("spot", "office"), 3.0)
 	Game.objective_done(Q_MAIN, "office")
 	Game.objective(Q_MAIN, "log", "Play the Warden's log", sh.call("spot", "recorder"))
@@ -859,7 +933,7 @@ func ch3_wake() -> void:
 		await wait(0.6)
 		mites[k].wake(true)
 	await wait(2.0)
-	hud.banner("SURESHOT", "[Q] Freeze time and target body parts — costs Focus", 5.0)
+	hud.banner("BLOOM MITES", "Small and fast. Aim low  [RMB]", 4.0)
 	await until_dead(mites)
 	Game.objective_done(Q_MAIN, "mites")
 	Audio.music("shelter_wake_loop", 3.0, -6.0)
@@ -1079,7 +1153,7 @@ func _thornback(door: Vector3) -> void:
 	Audio.sfx_at("thornback_roar", spawn, 6.0, 30.0)
 	player.shake(0.8)
 	tup.bark("tp_c19", true)
-	hud.banner("THORNBACK", "Aim for the glowing thorns on its back — [Q] SureShot", 4.0)
+	hud.banner("THORNBACK", "Aim for the glowing thorns on its back", 4.0)
 	await until_dead([tb])
 	Audio.music("", 2.0)
 	Audio.sting("sting_quest_done")

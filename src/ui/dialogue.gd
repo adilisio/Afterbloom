@@ -66,6 +66,7 @@ func begin(speaker: Node3D, cinematic := true) -> void:
 			_frame(speaker, 0.8)
 		return
 	_active = true
+	Audio.conversation = true
 	_speaker = speaker
 	Game.input_locked += 1
 	hud.letterbox(true)
@@ -82,6 +83,7 @@ func end() -> void:
 	if not _active:
 		return
 	_active = false
+	Audio.conversation = false
 	_choice_panel.visible = false
 	hud.letterbox(false)
 	if cam.current:

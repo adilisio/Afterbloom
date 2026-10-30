@@ -1,6 +1,6 @@
 class_name Hud
 extends CanvasLayer
-## In-game HUD: compass with markers, waypoint, health/focus/ammo, XP, quest tracker & banners,
+## In-game HUD: compass with markers, waypoint, health/ammo, XP, quest tracker & banners,
 ## pickup feed, subtitles, damage indicator, letterbox, fades and chapter cards.
 
 const AMBER := Color(0.97, 0.86, 0.62)
@@ -17,7 +17,6 @@ var font_type: Font
 var _compass: Control
 var _waypoint: Control
 var _hp_bar: ProgressBar
-var _focus_bar: ProgressBar
 var _ammo: Label
 var _prompt: Label
 var _cross: Control
@@ -69,7 +68,6 @@ func _ready() -> void:
 	Game.quest_event.connect(_on_quest_event)
 	Game.quests_changed.connect(_refresh_tracker)
 	Game.hp_changed.connect(func(h, m): _hp_bar.max_value = m; _hp_bar.value = h)
-	Game.focus_changed.connect(func(f, m): _focus_bar.max_value = m; _focus_bar.value = f)
 	Game.toast.connect(func(t): _feed_line(t, AMBER))
 	Game.location_discovered.connect(_on_discovered)
 	Audio.subtitle.connect(_on_subtitle)
@@ -173,7 +171,7 @@ void fragment() {
 	_waypoint.draw.connect(_draw_waypoint)
 	root.add_child(_waypoint)
 
-	# vitals (bottom-left health, bottom-right focus/ammo)
+	# vitals (bottom-left health, bottom-right ammo)
 	_vitals = Control.new()
 	_vitals.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_vitals.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -202,13 +200,6 @@ void fragment() {
 	_ammo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_ammo.custom_minimum_size = Vector2(240, 0)
 	rbox.add_child(_ammo)
-	var fl := _label("FOCUS  [Q] SureShot", 15, AMBER_DIM)
-	fl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	rbox.add_child(fl)
-	_focus_bar = _bar(Color(0.55, 0.85, 0.95), 240, 12)
-	_focus_bar.max_value = Game.max_focus()
-	_focus_bar.value = Game.focus
-	rbox.add_child(_focus_bar)
 	_radio_lbl = _label("", 16, AMBER_DIM)
 	_radio_lbl.anchor_left = 1.0
 	_radio_lbl.anchor_right = 1.0

@@ -75,6 +75,12 @@ func _build_chunk(ci: int, cj: int) -> void:
 		return
 	for j in range(0, j1 - cj):
 		for i in range(0, i1 - ci):
+			# notch where the shelter portal pierces the hillside: the grid quad x 178..180 slopes from the road
+			# (26 m) up to the hill and would otherwise stand across the open doorway as a dirt ramp
+			var qx := Layout.MIN_X + (ci + i) * Layout.CELL
+			var qz := Layout.MIN_Z + (cj + j) * Layout.CELL
+			if qx >= 177.9 and qx < 179.9 and qz >= -100.1 and qz < -90.1:
+				continue
 			var a := j * w + i
 			var b := a + 1
 			var c := a + w

@@ -152,7 +152,7 @@ static var _gnz := 0
 
 
 static func _layout_key() -> int:
-	return hash(str(ROADS) + str(PADS) + "v3")
+	return hash(str(ROADS) + str(PADS) + "v4")
 
 
 ## Loads (or builds and saves) the height + road-distance grid. Call once before building the world.
@@ -229,7 +229,9 @@ static func height_exact(x: float, z: float) -> float:
 		h = lerpf(pd.h, h, smoothstep(0.0, 8.0, pd.d))
 	var r := nearest_road(x, z)
 	var hw: float = r.road.get("w", 6.0) * 0.5 + (2.5 if r.road.get("walk", false) else 0.8)
-	if r.dist < hw + 9.0:
+	# (the bluff road ends at the shelter portal: its rounded end must not dish the hill behind the portal face, or
+	# the terrain mesh comes up through the shelter's entry hall floor)
+	if r.dist < hw + 9.0 and not (x > SHELTER_PORTAL.x + 0.5 and absf(z - SHELTER_PORTAL.z) < 24.0):
 		h = lerpf(r.h - 0.08, h, smoothstep(hw, hw + 9.0, r.dist))
 	return h
 

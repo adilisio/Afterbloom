@@ -7,7 +7,6 @@ signal leveled_up(level: int)
 signal quests_changed
 signal quest_event(kind: String, title: String)  # "start", "done", "update"
 signal hp_changed(hp: float, max_hp: float)
-signal focus_changed(focus: float, max_focus: float)
 signal settings_changed
 signal toast(text: String)
 signal location_discovered(name: String)
@@ -40,31 +39,32 @@ const ITEMS := {
 }
 
 const MAGAZINES := {
-	"steady_hand": {"title": "Steady Hand Sportsman", "perk": "SureShot hit chance +10%."},
+	"steady_hand": {"title": "Steady Hand Sportsman", "perk": "Recoil -35%."},
 	"tinker": {"title": "Tinker & Spanner", "perk": "Tuppence's zapper does +60% damage."},
 	"pantry": {"title": "Gentleman's Pantry", "perk": "Food and drink heal +50%."},
-	"astounding": {"title": "Astounding Tomorrow", "perk": "Focus regenerates 30% faster."},
+	"astounding": {"title": "Astounding Tomorrow", "perk": "Slowly heal when out of danger."},
 	"outdoorsman": {"title": "Outdoorsman's Almanac", "perk": "Sprint speed +12%."},
 	"hearth": {"title": "Halcyon Home & Hearth", "perk": "Max health +20."},
-	"detective": {"title": "Pulp Detective Weekly", "perk": "Critical shots in SureShot deal +50% damage."},
+	"detective": {"title": "Pulp Detective Weekly", "perk": "Headshots deal +50% damage."},
 	"lighthouse": {"title": "Coastal Keeper", "perk": "Gain 15% more experience."},
 }
 
 const TRAITS := {
-	"keen": {"name": "Keen Eyes", "desc": "SureShot hit chance +5%."},
+	"keen": {"name": "Keen Eyes", "desc": "Headshots deal +20% damage."},
 	"hardy": {"name": "Hardy", "desc": "Max health +15."},
 	"sentimental": {"name": "Sentimental", "desc": "Gain 10% more experience."},
 	"neighborly": {"name": "Good Neighbour", "desc": "Tuppence's zapper recharges 30% faster."},
 	"selfreliant": {"name": "Self-Reliant", "desc": "Weapon damage +10%."},
 	"pragmatist": {"name": "Pragmatist", "desc": "Food heals +30%."},
-	"optimist": {"name": "Optimist", "desc": "Focus regenerates 20% faster."},
+	"optimist": {"name": "Optimist", "desc": "Slowly heal when out of danger."},
 	"steady": {"name": "Steady", "desc": "Reload speed +20%."},
-	"loyalist": {"name": "Company Loyalist", "desc": "Max Focus +20."},
+	"loyalist": {"name": "Company Loyalist", "desc": "Tuppence's zapper does +30% damage."},
 }
 
 var settings := {
 	"mouse_sens": 0.12, "fov": 78.0, "vol_master": 0.9, "vol_music": 0.65, "vol_sfx": 0.9,
 	"vol_voice": 1.0, "quality": 2, "fullscreen": true, "subtitles": true, "invert_y": false,
+	"crouch_toggle": true,
 }
 
 var addr := "sir"
@@ -76,7 +76,7 @@ var discovered: Array[String] = []
 var xp := 0
 var level := 1
 var hp := 100.0
-var focus := 100.0
+var _hurt_at := -999.0  # play_time of the last damage taken (out-of-danger healing)
 var checkpoint := ""
 var quests: Array[Dictionary] = []  # {id, title, done, objectives:[{id,text,done,optional}], target}
 var tracked_quest := ""
@@ -119,9 +119,9 @@ func _preload_assets() -> void:
 func _process(delta: float) -> void:
 	if not get_tree().paused:
 		play_time += delta
-		var regen := 6.0 * (1.3 if magazines.has("astounding") else 1.0) * (1.2 if traits.has("optimist") else 1.0)
-		if focus < max_focus() and not flag("_sureshot_active"):
-			set_focus(focus + regen * delta)
+		var regen := (0.8 if magazines.has("astounding") else 0.0) + (0.5 if traits.has("optimist") else 0.0)
+		if regen > 0.0 and hp > 0.0 and hp < max_hp() and play_time - _hurt_at > 6.0:
+			heal_hp(regen * delta)
 
 
 # ---------------------------------------------------------------- input
@@ -130,7 +130,7 @@ func _setup_input() -> void:
 	var keys := {
 		"move_forward": [KEY_W, KEY_UP], "move_back": [KEY_S, KEY_DOWN], "move_left": [KEY_A, KEY_LEFT],
 		"move_right": [KEY_D, KEY_RIGHT], "jump": [KEY_SPACE], "sprint": [KEY_SHIFT], "crouch": [KEY_CTRL, KEY_C],
-		"interact": [KEY_E], "reload": [KEY_R], "sureshot": [KEY_Q], "flashlight": [KEY_F], "journal": [KEY_TAB, KEY_I],
+		"interact": [KEY_E], "reload": [KEY_R], "flashlight": [KEY_F], "journal": [KEY_TAB, KEY_I],
 		"radio": [KEY_T], "weapon_1": [KEY_1], "weapon_2": [KEY_2], "holster": [KEY_H], "pause": [KEY_ESCAPE],
 		"choice_1": [KEY_1], "choice_2": [KEY_2], "choice_3": [KEY_3], "choice_4": [KEY_4], "use_aid": [KEY_X],
 		"execute": [KEY_SPACE, KEY_ENTER],
@@ -259,10 +259,6 @@ func max_hp() -> float:
 	return 100.0 + 10.0 * (level - 1) + (15.0 if traits.has("hardy") else 0.0) + (20.0 if magazines.has("hearth") else 0.0)
 
 
-func max_focus() -> float:
-	return 100.0 + (20.0 if traits.has("loyalist") else 0.0)
-
-
 func heal_hp(amount: float) -> void:
 	hp = minf(hp + amount, max_hp())
 	hp_changed.emit(hp, max_hp())
@@ -270,12 +266,8 @@ func heal_hp(amount: float) -> void:
 
 func damage_hp(amount: float) -> void:
 	hp = maxf(hp - amount, 0.0)
+	_hurt_at = play_time
 	hp_changed.emit(hp, max_hp())
-
-
-func set_focus(v: float) -> void:
-	focus = clampf(v, 0.0, max_focus())
-	focus_changed.emit(focus, max_focus())
 
 
 func add_xp(amount: int, _reason := "") -> void:
@@ -487,7 +479,7 @@ func reset_state() -> void:
 	xp = 0
 	level = 1
 	hp = 100.0
-	focus = 100.0
+	_hurt_at = -999.0
 	quests.clear()
 	tracked_quest = ""
 	checkpoint = ""

@@ -44,6 +44,11 @@ var _sting: AudioStreamPlayer
 var _amb := {}  # layer -> AudioStreamPlayer
 var _voice_players: Array = []
 var _duck := 0.0
+## true while a conversation is open (Dialogue.begin..end); TV/radio duck and keep their subtitles to themselves
+var conversation := false
+var _fg_until := 0  # msec until the current foreground (non TV/radio) voice line ends
+var _amb_duck := 0.0  # dB currently applied to the TV and Radio buses
+const AMBIENT_BUSES := ["TV", "Radio"]
 
 # radio: station id -> {items, idx, started_ms, len, stream, special:Array}
 var _stations := {}
@@ -314,6 +319,10 @@ func voice(id: String, source: Node3D = null, bus := "", vol_db := 0.0, subs := 
 		dur = s.get_length()
 	if bus == "":
 		bus = SPEAKER_BUS.get(who, "Voice")
+	if bus in AMBIENT_BUSES:
+		subs = subs and not foreground_busy()
+	else:
+		_fg_until = maxi(_fg_until, Time.get_ticks_msec() + int(dur * 1000.0))
 	if s != null:
 		var p: Node
 		if source != null and is_instance_valid(source):
@@ -385,6 +394,8 @@ func ambience_volume(layer: String, vol_db: float, fade := 1.0) -> void:
 
 
 func stop_all() -> void:
+	conversation = false
+	_fg_until = 0
 	music("", 0.5)
 	for l in _amb.keys():
 		ambience(l, "", 0.0, 0.5)
@@ -438,11 +449,38 @@ func _process(delta: float) -> void:
 		var d: Dictionary = _stations[st]
 		if (Time.get_ticks_msec() - d.started) / 1000.0 >= d.len + 1.2:
 			_advance_station(st)
-	# duck music under voice/stingers
+	# duck music under voice/stingers, and fade it out near a playing radio so songs don't clash with the score
 	_duck = maxf(_duck - delta, 0.0)
 	var mb := AudioServer.get_bus_index("Music")
-	var target := linear_to_db(Game.settings.vol_music) - (7.0 if _duck > 0.0 else 0.0)
+	var target := linear_to_db(Game.settings.vol_music) - (7.0 if _duck > 0.0 else 0.0) - 30.0 * _radio_presence()
 	AudioServer.set_bus_volume_db(mb, lerpf(AudioServer.get_bus_volume_db(mb), target, minf(delta * 3.0, 1.0)))
+	# TV and radio step back while someone is talking to you, and the TV yields to a radio you're listening to
+	var amb_target := -13.0 if foreground_busy() else 0.0
+	_amb_duck = lerpf(_amb_duck, amb_target, minf(delta * 4.0, 1.0))
+	var vv := linear_to_db(Game.settings.vol_voice)
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Radio"), vv + _amb_duck)
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("TV"), vv + _amb_duck - 12.0 * _radio_presence())
+
+
+## A character is speaking to the player (dialogue open, or a non TV/radio line still playing).
+func foreground_busy() -> bool:
+	return conversation or Time.get_ticks_msec() < _fg_until
+
+
+## 0..1: how strongly the player can hear a radio (1 = pocket radio, or right next to a set).
+func _radio_presence() -> float:
+	var cam := get_viewport().get_camera_3d()
+	var best := 0.0
+	for r in _receivers:
+		var p: Node = r.player
+		if not is_instance_valid(p):  # attached = switched on, even in the gap between items
+			continue
+		if not p is Node3D:
+			return 1.0
+		if cam != null:
+			var d := cam.global_position.distance_to((p as Node3D).global_position)
+			best = maxf(best, 1.0 - smoothstep(4.0, 12.0, d))
+	return best
 
 
 func _is_near(p: Node) -> bool:
@@ -477,6 +515,6 @@ func _play_receiver(r: Dictionary) -> void:
 	var off: float = (Time.get_ticks_msec() - d.started) / 1000.0
 	if off < d.len - 0.1:
 		p.call("play", off)
-		if d.get("voice_id", "") != "" and off < 0.5 and _is_near(p):
+		if d.get("voice_id", "") != "" and off < 0.5 and _is_near(p) and not foreground_busy():
 			var text := Game.line_text(d.voice_id)
 			subtitle.emit(SPEAKER_NAMES.get(Game.line_speaker(d.voice_id), "Radio"), text, d.len)

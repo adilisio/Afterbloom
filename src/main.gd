@@ -23,6 +23,7 @@ func _ready() -> void:
 	if ResourceLoader.exists("res://src/ui/journal.gd"):
 		journal = (load("res://src/ui/journal.gd") as GDScript).new()
 		add_child(journal)
+	add_child(Feedback.new())
 	if Game.shot_args.has("probe"):
 		add_child((load("res://src/debug/probe.gd") as GDScript).new())
 	if not Game.shot_args.is_empty() and Game.shot_args.has("shot") and Game.shot_args.shot != "title":
@@ -161,6 +162,8 @@ const SHOTS := {
 	"home_living2": {"era": "before", "spot": "sofa", "yaw": 0.0, "pitch": -6.0, "hour": 8.8},
 	"home_kitchen": {"era": "before", "spot": "table", "yaw": -60.0, "pitch": -8.0, "hour": 8.8},
 	"home_bedroom": {"era": "before", "spot": "bedroom", "yaw": 150.0, "pitch": -10.0, "hour": 8.8},
+	"home_bedroom_door": {"era": "before", "spot": "bedroom", "yaw": 75.0, "pitch": -14.0, "hour": 8.8},
+	"home_floor": {"era": "before", "spot": "living", "yaw": 120.0, "pitch": -40.0, "hour": 8.8},
 	"home_fire": {"era": "before", "spot": "living", "yaw": 90.0, "pitch": -5.0, "hour": 8.8},
 	"home_front": {"era": "before", "pos": Vector3(10, 0, 4), "yaw": 35.0, "pitch": -8.0, "hour": 9.0},
 	"home_after": {"era": "after", "spot": "living", "yaw": 180.0, "pitch": -8.0, "hour": 14.0},
@@ -203,6 +206,10 @@ func _run_shot(names_csv: String) -> void:
 	var cur_era := ""
 	for name in names:
 		var sc: Dictionary = SHOTS.get(name, SHOTS.home_living)
+		if name == "view":
+			# reproduce a playtest note: --view=x,y,z,yaw,pitch [--era=] [--hour=] (see notes.jsonl "repro")
+			var v := String(Game.shot_args.get("view", "0,0,0,0,0")).split_floats(",")
+			sc = {"era": Game.shot_args.get("era", "before"), "pos": Vector3(v[0], v[1], v[2]), "yaw": v[3], "pitch": v[4], "hour": 9.0, "exact": true}
 		if sc.era != cur_era:
 			cur_era = sc.era
 			await make_world(sc.era)
@@ -216,7 +223,8 @@ func _run_shot(names_csv: String) -> void:
 			pos = world.home.spot(sc.spot)
 		else:
 			pos = sc.pos
-			pos.y = maxf(pos.y, Layout.height(pos.x, pos.z) + 0.1)
+			if not sc.get("exact", false):
+				pos.y = maxf(pos.y, Layout.height(pos.x, pos.z) + 0.1)
 		player.teleport(pos, sc.yaw)
 		player.set_look(sc.yaw, sc.pitch)
 		if sc.has("gun"):

@@ -9,13 +9,34 @@ signal gesture_finished(gesture_name: String)
 const GESTURES := {"bow": 2.2, "stamp": 2.4, "nod": 1.1}
 const EYE_GREEN := Color(0.45, 1.0, 0.55)
 
-enum { SP, SR, SY, EL, WR, ARM_N }
-const HY := 10
-const HP := 11
-const HR := 12
-const BP := 13
-const BY := 14
-const CH_N := 15
+# per-arm channels: shoulder pitch/roll/yaw, elbow, wrist bend, wrist twist (about the forearm axis)
+enum { SP, SR, SY, EL, WR, WT, ARM_N }
+const HY := ARM_N * 2
+const HP := HY + 1
+const HR := HY + 2
+const BP := HY + 3
+const BY := HY + 4
+const CH_N := HY + 5
+# arm geometry (shoulders sit a little forward of the torso's mid-depth so the hands can meet in front)
+const SHOULDER := Vector3(0.31, 0.6, -0.05)
+const UPPER_LEN := 0.27
+const FORE_LEN := 0.26
+# arm poses: [shoulder pitch, roll, yaw, elbow, wrist bend, wrist twist]; roll/yaw/twist mirror per side
+const HOLD_L := [0.45, 0.3, 0.5, 1.3, -0.2, -1.8]   # left: clipboard held level in front, like a form being read
+const REST_R := [0.08, 0.1, 0.1, 0.45, 0.0, 0.0]    # right: stamp hanging at the side
+# "stamp": the left hand levels the board in front of the chest; the right comes in elbow-out, wrist bent
+# down, and lands the stamp face flat on the paper (poses solved numerically against the meshes)
+const L_STAMP := [0.337, 0.602, 0.855, 1.54, -0.439, -1.799]
+const R_RAISE := [0.41, 1.6, 1.522, 1.863, -1.6, -1.206]
+const R_HIT := [0.107, 1.385, 1.5, 1.759, -1.573, -0.975]
+# "bow": right forearm across the chest, butler style (elbow out so it clears the torso)
+const R_BOW := [0.2, 0.8, 1.4, 1.8, 0.0, 1.57]
+# clipboard (grip space of the left hand): x = width across the board, y = length along the fingers
+const CB_SIZE := Vector2(0.19, 0.25)
+const CB_THICK := 0.008
+const CB_SIDE := 1.0
+# the near edge passes 12 mm beyond the jaw centre line, so the pads close on a strip of board
+const CB_CENTER := Vector3(0.0, 0.028 - CB_SIZE.y * 0.5, CB_SIDE * (CB_SIZE.x * 0.5 - 0.012))
 
 var _idle := PackedFloat32Array()
 var _gp := PackedFloat32Array()
@@ -153,7 +174,8 @@ func _build() -> void:
 	ModelKit.mi(base, ModelKit.sphere(0.024, 14, 8), ModelKit.glow("reg_lamp", Color(1.0, 0.85, 0.55), 2.0), Vector3(0, 0.22, -0.205), Vector3.ZERO, Vector3(1, 1, 0.5))
 	# ---- torso ----
 	_torso = ModelKit.pivot(_body, "Torso", Vector3(0, 0.34, 0))
-	ModelKit.mi(_torso, ModelKit.cyl(0.11, 0.14, 0.06, 24), chrome, Vector3(0, 0.02, 0))
+	# waist: a ball joint centred on the pitch pivot, so bowing never pushes it through the base
+	ModelKit.mi(_torso, ModelKit.sphere(0.115, 24, 12), chrome)
 	ModelKit.mi(_torso, ModelKit.rounded_box(Vector3(0.54, 0.62, 0.36), 0.07, 3), teal, Vector3(0, 0.38, 0))
 	# cream front panel
 	ModelKit.mi(_torso, ModelKit.rounded_box(Vector3(0.42, 0.48, 0.02), 0.012, 2), cream, Vector3(0, 0.39, -0.177))
@@ -234,7 +256,7 @@ func _build() -> void:
 	# shoulders
 	for side in 2:
 		var sx := -1.0 if side == 0 else 1.0
-		ModelKit.mi(_torso, ModelKit.sphere(0.07, 14, 8), chrome, Vector3(sx * 0.29, 0.6, 0), Vector3.ZERO, Vector3(1, 0.8, 1))
+		ModelKit.mi(_torso, ModelKit.sphere(0.07, 14, 8), chrome, Vector3(sx * (SHOULDER.x - 0.02), SHOULDER.y, SHOULDER.z), Vector3.ZERO, Vector3(1, 0.8, 1))
 	# neck
 	for k in 3:
 		ModelKit.mi(_torso, ModelKit.torus(0.035, 0.06, 18, 5), rubber, Vector3(0, 0.705 + k * 0.025, 0))
@@ -318,20 +340,26 @@ func _build_head(h: Node3D, teal: StandardMaterial3D, cream: StandardMaterial3D,
 
 func _build_arm(side: int, chrome: StandardMaterial3D, rubber: StandardMaterial3D, teal: StandardMaterial3D) -> void:
 	var sx := -1.0 if side == 0 else 1.0
-	var sh := ModelKit.pivot(_torso, "Shoulder%d" % side, Vector3(sx * 0.31, 0.6, 0))
-	ModelKit.mi(sh, ModelKit.cyl(0.035, 0.032, 0.2, 18), teal, Vector3(0, -0.11, 0))
+	var sh := ModelKit.pivot(_torso, "Shoulder%d" % side, Vector3(sx * SHOULDER.x, SHOULDER.y, SHOULDER.z))
+	ModelKit.mi(sh, ModelKit.cyl(0.035, 0.032, UPPER_LEN - 0.045, 18), teal, Vector3(0, -0.01 - (UPPER_LEN - 0.045) * 0.5, 0))
 	ModelKit.mi(sh, ModelKit.torus(0.032, 0.04, 18, 6), chrome, Vector3(0, -0.03, 0))
-	var el := ModelKit.pivot(sh, "Elbow", Vector3(0, -0.22, 0))
-	for k in 3:
-		ModelKit.mi(el, ModelKit.torus(0.018, 0.036, 16, 6), rubber, Vector3(0, 0.012 - k * 0.014, 0))
-	ModelKit.mi(el, ModelKit.cyl(0.03, 0.026, 0.18, 18), chrome, Vector3(0, -0.12, 0))
-	var wr := ModelKit.pivot(el, "Wrist", Vector3(0, -0.215, 0))
-	ModelKit.mi(wr, ModelKit.cyl(0.032, 0.032, 0.03, 16), teal, Vector3(0, 0.005, 0))
-	# two-jaw clamp hand
+	var el := ModelKit.pivot(sh, "Elbow", Vector3(0, -UPPER_LEN, 0))
+	# elbow: a chrome ball (rotation-invariant, so the bend never shows an intersection) with a rubber boot below
+	ModelKit.mi(el, ModelKit.sphere(0.041, 18, 10), rubber)
+	ModelKit.mi(el, ModelKit.torus(0.016, 0.032, 16, 6), chrome, Vector3(0, -0.05, 0))
+	ModelKit.mi(el, ModelKit.cyl(0.028, 0.026, FORE_LEN - 0.075, 18), chrome, Vector3(0, -0.05 - (FORE_LEN - 0.075) * 0.5, 0))
+	var wr := ModelKit.pivot(el, "Wrist", Vector3(0, -FORE_LEN, 0))
+	ModelKit.mi(wr, ModelKit.sphere(0.03, 16, 10), teal)
+	# two-jaw clamp hand; the left one is closed on the clipboard's edge, the right one round the stamp handle
+	var jx := 0.022 if side == 1 else 0.016
+	var px := 0.015 if side == 1 else 0.008
+	var splay := -8.0 if side == 1 else 0.0
 	for k in 2:
-		var jaw := ModelKit.mi(wr, ModelKit.rounded_box(Vector3(0.012, 0.07, 0.03), 0.005, 2), chrome, Vector3((k * 2 - 1) * 0.022, -0.045, 0), Vector3(0, 0, (k * 2 - 1) * -8.0))
+		var jaw := ModelKit.mi(wr, ModelKit.rounded_box(Vector3(0.012, 0.07, 0.03), 0.005, 2), chrome, Vector3((k * 2 - 1) * jx, -0.045, 0), Vector3(0, 0, (k * 2 - 1) * splay))
 		jaw.name = "Jaw%d" % k
-		ModelKit.mi(wr, ModelKit.box(Vector3(0.006, 0.02, 0.026)), rubber, Vector3((k * 2 - 1) * 0.015, -0.07, 0))
+		ModelKit.mi(wr, ModelKit.box(Vector3(0.006, 0.02, 0.026)), rubber, Vector3((k * 2 - 1) * px, -0.07, 0))
+	# palm block joining the jaws
+	ModelKit.mi(wr, ModelKit.rounded_box(Vector3(jx * 2.0 + 0.012, 0.016, 0.034), 0.005, 2), chrome, Vector3(0, -0.018, 0))
 	var grip := ModelKit.pivot(wr, "Grip", Vector3(0, -0.06, 0))
 	_grip.append(grip)
 	_sh.append(sh)
@@ -340,21 +368,28 @@ func _build_arm(side: int, chrome: StandardMaterial3D, rubber: StandardMaterial3
 
 
 func _build_props(chrome: StandardMaterial3D, dark: StandardMaterial3D) -> void:
-	# clipboard in the left hand
-	var cb := ModelKit.pivot(_grip[0], "Clipboard", Vector3(0.0, 0.03, -0.03))
-	cb.rotation_degrees = Vector3(0, -90, 0)
+	# clipboard in the left hand. The clamp's jaws pinch along the hand's X axis, so the board lies in the
+	# hand's Y-Z plane: its near edge sits between the rubber pads and it extends past the fingertips (-Y)
+	# and to one side (CB_SIDE * Z). The paper faces +X. Pose the board with the wrist twist/bend channels.
+	var cb := ModelKit.pivot(_grip[0], "Clipboard")
 	var board := ModelKit.pbr("reg_board", Color(0.42, 0.27, 0.14), 0.0, 0.6)
 	var paper := ModelKit.pbr("reg_paper", Color(0.95, 0.93, 0.86), 0.0, 0.85)
-	ModelKit.mi(cb, ModelKit.rounded_box(Vector3(0.006, 0.24, 0.18), 0.003, 1), board, Vector3(0.0, -0.06, 0.0))
-	ModelKit.mi(cb, ModelKit.box(Vector3(0.002, 0.2, 0.15)), paper, Vector3(-0.004, -0.075, 0.0))
-	ModelKit.mi(cb, ModelKit.rounded_box(Vector3(0.012, 0.03, 0.08), 0.004, 1), chrome, Vector3(-0.004, 0.045, 0.0))
-	for k in 6:
-		ModelKit.mi(cb, ModelKit.box(Vector3(0.0005, 0.004, 0.11 - (k % 3) * 0.02)), dark, Vector3(-0.0055, -0.01 - k * 0.025, -0.01))
+	var c := CB_CENTER
+	ModelKit.mi(cb, ModelKit.rounded_box(Vector3(CB_THICK, CB_SIZE.y, CB_SIZE.x), 0.004, 1), board, c)
+	ModelKit.mi(cb, ModelKit.box(Vector3(0.0015, CB_SIZE.y - 0.04, CB_SIZE.x - 0.03)), paper, c + Vector3(CB_THICK * 0.5 + 0.0008, 0.006, 0))
+	# spring clip at the far (top) end
+	var top := c.y - CB_SIZE.y * 0.5
+	ModelKit.mi(cb, ModelKit.rounded_box(Vector3(0.008, 0.03, 0.08), 0.003, 1), chrome, Vector3(CB_THICK * 0.5 + 0.004, top + 0.02, c.z))
+	ModelKit.mi(cb, ModelKit.cyl(0.004, 0.004, 0.09, 10), chrome, Vector3(CB_THICK * 0.5 + 0.005, top + 0.006, c.z), Vector3(90, 0, 0))
+	# printed lines across the form
+	for k in 7:
+		ModelKit.mi(cb, ModelKit.box(Vector3(0.0005, 0.004, (0.12 - (k % 3) * 0.025))), dark, Vector3(CB_THICK * 0.5 + 0.0018, top + 0.055 + k * 0.024, c.z + CB_SIDE * 0.01))
 	# rubber stamp in the right hand
 	var st := ModelKit.pivot(_grip[1], "Stamp", Vector3(0, -0.01, 0))
 	var wood := ModelKit.pbr("reg_wood", Color(0.45, 0.25, 0.11), 0.0, 0.5)
-	ModelKit.mi(st, ModelKit.sphere(0.022, 14, 8), wood, Vector3(0, 0.02, 0))
-	ModelKit.mi(st, ModelKit.cyl(0.011, 0.014, 0.06, 12), wood, Vector3(0, -0.02, 0))
+	# the jaws close on the handle; the knob sits between the jaw plates, under the palm
+	ModelKit.mi(st, ModelKit.sphere(0.0145, 14, 8), wood, Vector3(0, 0.02, 0))
+	ModelKit.mi(st, ModelKit.cyl(0.011, 0.013, 0.06, 12), wood, Vector3(0, -0.01, 0))
 	ModelKit.mi(st, ModelKit.box(Vector3(0.06, 0.018, 0.04)), wood, Vector3(0, -0.058, 0))
 	ModelKit.mi(st, ModelKit.box(Vector3(0.056, 0.006, 0.036)), ModelKit.pbr("reg_ink", Color(0.5, 0.05, 0.05), 0.0, 0.6), Vector3(0, -0.07, 0))
 
@@ -397,16 +432,13 @@ func _end_gesture() -> void:
 
 func _compute_idle(delta: float) -> void:
 	var t := _t
-	_idle[SP] = 0.22 + _nz(t * 0.3, 1.0) * 0.04
-	_idle[SR] = 0.12
-	_idle[SY] = 0.3
-	_idle[EL] = 1.35 + _nz(t * 0.25, 2.0) * 0.05
-	_idle[WR] = 0.0
-	_idle[ARM_N + SP] = 0.08 + _nz(t * 0.3, 3.0) * 0.05
-	_idle[ARM_N + SR] = 0.1
-	_idle[ARM_N + SY] = 0.1
-	_idle[ARM_N + EL] = 0.45 + _nz(t * 0.25, 4.0) * 0.06
-	_idle[ARM_N + WR] = 0.0
+	for c in ARM_N:
+		_idle[c] = HOLD_L[c]
+		_idle[ARM_N + c] = REST_R[c]
+	_idle[SP] += _nz(t * 0.3, 1.0) * 0.03
+	_idle[EL] += _nz(t * 0.25, 2.0) * 0.04
+	_idle[ARM_N + SP] += _nz(t * 0.3, 3.0) * 0.05
+	_idle[ARM_N + EL] += _nz(t * 0.25, 4.0) * 0.06
 	_idle_timer -= delta
 	if _idle_timer <= 0.0:
 		_idle_timer = _rng.randf_range(2.0, 5.0)
@@ -427,15 +459,26 @@ func _compute_idle(delta: float) -> void:
 	_idle[BY] = look.x * 0.15
 
 
-func _set_arm(side: int, sp: float, sr: float, sy: float, el: float, wr: float) -> void:
+func _set_arm(side: int, sp: float, sr: float, sy: float, el: float, wr: float, wt := 0.0) -> void:
 	var o := side * ARM_N
 	_gp[o + SP] = sp
 	_gp[o + SR] = sr
 	_gp[o + SY] = sy
 	_gp[o + EL] = el
 	_gp[o + WR] = wr
+	_gp[o + WT] = wt
 	for c in ARM_N:
 		_gm[o + c] = 1.0
+
+
+## Writes a pose (Array of ARM_N floats) into the gesture channels of one arm.
+func _arm_pose(side: int, p: Array) -> void:
+	_set_arm(side, p[0], p[1], p[2], p[3], p[4], p[5])
+
+
+## Blends two arm poses (Arrays of ARM_N floats).
+func _arm_mix(side: int, a: Array, b: Array, k: float) -> void:
+	_set_arm(side, lerpf(a[0], b[0], k), lerpf(a[1], b[1], k), lerpf(a[2], b[2], k), lerpf(a[3], b[3], k), lerpf(a[4], b[4], k), lerpf(a[5], b[5], k))
 
 
 func _eval_gesture(g: String, t: float, dur: float) -> void:
@@ -444,16 +487,21 @@ func _eval_gesture(g: String, t: float, dur: float) -> void:
 			var k := ModelKit.env(t, 0.2, 0.7, 1.3, 1.9)
 			_gp[BP] = -0.42 * k
 			_gp[HP] = -0.25 * k
-			_set_arm(1, 0.5, -0.05, 0.7, 1.5, 0.0)
+			_arm_pose(0, HOLD_L)
+			_arm_mix(1, REST_R, R_BOW, ModelKit.env(t, 0.0, 0.5, 1.5, 2.0))
 		"stamp":
-			# lift clipboard flat, raise stamp, slam at ~1.1 s, ticket prints
-			_set_arm(0, 0.45, 0.1, 0.55, 1.3, 0.0)
-			var lift := ModelKit.env(t, 0.25, 0.75, 0.95, 1.08)
-			var slam := ModelKit.env(t, 0.95, 1.08, 1.3, 1.7)
-			_set_arm(1, 0.5 + lift * 0.75 + slam * 0.25, 0.05, 0.75, 0.75 + lift * 0.55 + slam * 0.1, 0.0)
+			# level the clipboard, raise the stamp, slam at ~1.1 s (flat on the paper), ticket prints
+			# the stamp goes up first and the board slides in underneath it (and back out again before the
+			# stamp comes down to the side), so they never cross
+			_arm_mix(0, HOLD_L, L_STAMP, ModelKit.ramp(t, 0.3, 0.8) * (1.0 - ModelKit.ramp(t, 1.8, 2.05)))
+			var lift := ModelKit.ramp(t, 0.0, 0.5)
+			var slam := ModelKit.env(t, 1.0, 1.12, 1.4, 1.8)
+			for c in ARM_N:
+				_gp[ARM_N + c] = lerpf(lerpf(REST_R[c], R_RAISE[c], lift), R_HIT[c], slam)
+				_gm[ARM_N + c] = 1.0
 			_gp[HP] = -0.3 * ModelKit.env(t, 0.3, 0.7, dur - 0.6, dur - 0.2)
 			_gp[BP] = -0.05 * slam
-			if t > 1.08 and not _stamped:
+			if t > 1.12 and not _stamped:
 				_stamped = true
 				_ticket_out = 0.001
 		"nod":
@@ -470,7 +518,7 @@ func _apply() -> void:
 		var m := -1.0 if side == 0 else 1.0
 		_sh[side].rotation = Vector3(_cur[o + SP], _cur[o + SY] * m, _cur[o + SR] * m)
 		_el[side].rotation = Vector3(_cur[o + EL], 0.0, 0.0)
-		_wr[side].rotation = Vector3(_cur[o + WR], 0.0, 0.0)
+		_wr[side].rotation = Vector3(_cur[o + WR], _cur[o + WT] * m, 0.0)
 
 
 func _update_fx(delta: float) -> void:

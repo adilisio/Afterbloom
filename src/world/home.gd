@@ -84,7 +84,8 @@ func _mark(name: String, local: Vector3) -> Node3D:
 func _shell() -> void:
 	var y := FLOOR_Y
 	# foundation (brick plinth) + floors
-	Geo.box(self, Vector3(0, y * 0.5 - 0.05, 0), Vector3(14.2, y + 0.1, 10.2), Mats.tex("red_brick_03", 1.5, Color(0.85, 0.8, 0.75)), true, "concrete")
+	# plinth top sits under the floor boards; a shared top face z-fought (wood/brick flicker)
+	Geo.box(self, Vector3(0, (y - 0.06) * 0.5 - 0.05, 0), Vector3(14.2, y + 0.04, 10.2), Mats.tex("red_brick_03", 1.5, Color(0.85, 0.8, 0.75)), true, "concrete")
 	Geo.box(self, Vector3(-3.25, y - 0.02, 0), Vector3(7.5, 0.04, 10.0), m_wood_floor, true, "wood")
 	Geo.box(self, Vector3(1.6, y - 0.02, 0), Vector3(2.2, 0.04, 10.0), m_wood_floor, true, "wood")
 	Geo.box(self, Vector3(4.85, y - 0.02, 2.5), Vector3(4.3, 0.04, 5.0), m_kitchen_floor, true, "wood")
@@ -403,7 +404,7 @@ func _bedroom() -> void:
 	Props.spawn(self, "ClassicNightstand_01", Vector3(5.45, y, -4.55), 0.0)
 	Props.spawn(self, "alarm_clock_01", Vector3(5.4, y + 0.7, -4.5), -20.0, {"collide": false})
 	Props.spawn(self, "round_spectacles", Vector3(5.6, y + 0.7, -4.45), 30.0, {"collide": false})
-	Props.spawn(self, "drawer_cabinet", Vector3(3.15, y, -1.3), 90.0)
+	Props.spawn(self, "drawer_cabinet", Vector3(3.75, y, -0.34), 180.0)
 	Props.spawn(self, "vintage_suitcase", Vector3(6.4, y, -0.5), -90.0, {"pick": "vintage_suitcase"} if false else {})
 	Props.spawn(self, "potted_plant_04", Vector3(6.6, y + 0.0, -4.6), 0.0, {"collide": false})
 	_rug(Vector3(4.6, y, -2.0), Vector2(2.2, 1.4), "curly_teddy_natural", Color(1.0, 0.9, 0.85))
@@ -490,14 +491,14 @@ func _exterior() -> void:
 	Props.spawn(self, "painted_wooden_bench", Vector3(-0.0, y, 6.2), 90.0, {"scale": 0.9})
 	Props.spawn(self, "planter_box_01", Vector3(3.3, y, 6.6), 90.0, {"scale": 0.7})
 	Geo.box(self, Vector3(1.6, y + 0.005, 5.6), Vector3(0.9, 0.01, 0.5), Mats.tex("hessian_230" if false else "fabric_pattern_05", 0.5, Color(0.55, 0.4, 0.3)), false)
-	# path from porch to sidewalk
+	# path from porch to sidewalk (the lot ends at local z ~11.2, where the sidewalk starts)
 	var path_mat := Mats.tex("concrete_pavement", 2.0, Color(0.95, 0.93, 0.9))
-	for i in 7:
+	for i in 3:
 		var pz := 8.9 + i * 1.0
 		var gp := global_transform * Vector3(1.6, 0, pz)
-		Geo.box(self, Vector3(1.6, Layout.height(gp.x, gp.z) - global_position.y + 0.04, pz), Vector3(1.4, 0.1, 0.85), path_mat, true, "concrete")
-	_mark("path_end", Vector3(1.6, 0, 15.0))
-	# picket fence along the front (z = +14.5 local) with a gate gap at the path
+		Geo.box(self, Vector3(1.6, Layout.height(gp.x, gp.z) - global_position.y + 0.06, pz), Vector3(1.4, 0.1, 0.85), path_mat, true, "concrete")
+	_mark("path_end", Vector3(1.6, 0, 11.8))
+	# picket fence along the front of the lot (z = +11 local) with a gate gap at the path
 	var fence_mat := m_trim if not after else Mats.color(Color(0.6, 0.6, 0.55), 0.8)
 	for i in range(-11, 12):
 		var fx := i * 0.62
@@ -505,20 +506,20 @@ func _exterior() -> void:
 			continue
 		if after and randf() < 0.15:
 			continue
-		var gp2 := global_transform * Vector3(fx, 0, 14.0)
+		var gp2 := global_transform * Vector3(fx, 0, 11.0)
 		var gy := Layout.height(gp2.x, gp2.z) - global_position.y
-		var pk := Geo.box(self, Vector3(fx, gy + 0.45, 14.0), Vector3(0.09, 0.9, 0.03), fence_mat, false)
+		var pk := Geo.box(self, Vector3(fx, gy + 0.45, 11.0), Vector3(0.09, 0.9, 0.03), fence_mat, false)
 		if after:
 			pk.rotation.z = randf_range(-0.15, 0.15)
 	for rail_y in [0.25, 0.7]:
-		var a := global_transform * Vector3(-6.8, 0, 14.0)
-		Geo.box(self, Vector3(-3.7, Layout.height(a.x, a.z) - global_position.y + rail_y, 13.98), Vector3(6.4, 0.06, 0.03), fence_mat, false)
-		Geo.box(self, Vector3(4.6 + 1.0, Layout.height(a.x + 9, a.z) - global_position.y + rail_y, 13.98), Vector3(6.6, 0.06, 0.03), fence_mat, false)
+		var a := global_transform * Vector3(-6.8, 0, 11.0)
+		Geo.box(self, Vector3(-3.7, Layout.height(a.x, a.z) - global_position.y + rail_y, 10.98), Vector3(6.4, 0.06, 0.03), fence_mat, false)
+		Geo.box(self, Vector3(4.65, Layout.height(a.x + 9, a.z) - global_position.y + rail_y, 10.98), Vector3(4.3, 0.06, 0.03), fence_mat, false)
 	# yard props
 	var g := global_transform * Vector3(-3.5, 0, 9.5)
 	Props.spawn(self, "garden_gnome", Vector3(-3.5, Layout.height(g.x, g.z) - global_position.y, 9.5), 160.0, {"collide": false})
-	var mb := global_transform * Vector3(3.2, 0, 14.3)
-	_mailbox(Vector3(3.2, Layout.height(mb.x, mb.z) - global_position.y, 14.3))
+	var mb := global_transform * Vector3(3.2, 0, 11.4)
+	_mailbox(Vector3(3.2, Layout.height(mb.x, mb.z) - global_position.y, 11.4))
 	if not after:
 		var s := global_transform * Vector3(-5.5, 0, 12.0)
 		Props.spawn(self, "garden_sprinkler_01", Vector3(-5.5, Layout.height(s.x, s.z) - global_position.y, 12.0), 0.0, {"collide": false})

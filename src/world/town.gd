@@ -678,40 +678,63 @@ func _shelter_portal() -> void:
 	Geo.box(root, Vector3(0.5, 7.0, -6.0), Vector3(1.6, 14.0, 5.0), conc, true)
 	Geo.box(root, Vector3(0.5, 7.0, 6.0), Vector3(1.6, 14.0, 5.0), conc, true)
 	Geo.box(root, Vector3(0.5, 10.0, 0), Vector3(1.6, 8.0, 7.2), conc, true)
-	Geo.box(root, Vector3(-0.4, 5.6, 0), Vector3(0.4, 0.6, 7.4), Mats.color(Color(0.85, 0.65, 0.15), 0.6), false)
+	# lintel stripe tight under the header (the opening is z -3.5..3.5, y 0..6; clear height below the stripe 5.4)
+	Geo.box(root, Vector3(-0.4, 5.7, 0), Vector3(0.4, 0.6, 7.4), Mats.color(Color(0.85, 0.65, 0.15), 0.6), false)
+	# Walkable threshold from the road end (x 176, road top 26.05) to the hall floor (x 178.8, 26.0). Without it the
+	# terrain collider stopped at x 178 (NaN hole over the shelter) leaving a 0.8 m gap, and the terrain here sits 8 cm
+	# under the road, so the road's end was a 13 cm ledge the player capsule could not climb (>50 deg contact).
+	Geo.box(root, Vector3(-1.45, -0.12, 0), Vector3(2.3, 0.36, 6.5), conc, true, "concrete")  # apron x 175.4..177.7, top 26.06
+	Geo.box(root, Vector3(0.35, -0.11, 0), Vector3(1.3, 0.3, 7.0), Mats.tex("metal_plate", 1.0, Color(0.45, 0.45, 0.42)), true, "metal")  # sill, top 26.04
+	for side in [-1.0, 1.0]:
+		# invisible chamfers so the apron's 14 cm sides can be walked onto from the cut floor
+		var ch := StaticBody3D.new()
+		ch.set_meta("surface", "concrete")
+		var chs := CollisionShape3D.new()
+		var chb := BoxShape3D.new()
+		chb.size = Vector3(2.4, 0.1, 0.85)
+		chs.shape = chb
+		ch.add_child(chs)
+		root.add_child(ch)
+		ch.position = Vector3(-1.4, -0.07, side * 3.65)
+		ch.rotation.x = side * atan2(0.16, 0.8)
 	# sign + emblem
 	Geo.decal_quad(root, Vector3(-0.32, 8.2, 0), Vector2(6.0, 1.5), Mats.gen("sign_shelter9_aged" if after else "sign_shelter9"), Vector3(0, -PI * 0.5, 0))
-	# blast doors (slide apart along z)
+	# blast doors (slide apart along z). Each body is itself the moving node: an AnimatableBody3D only syncs its
+	# collider when its own transform changes, so moving a parent left the closed colliders behind (players got stuck).
 	var door_mat := Mats.tex("metal_plate", 1.5, Color(0.6, 0.62, 0.6) if not after else Color(0.5, 0.45, 0.4))
 	var stripe := Mats.color(Color(0.9, 0.7, 0.1), 0.6)
-	shelter_door_l = Node3D.new()
-	shelter_door_r = Node3D.new()
+	var logo := Mats.gen("logo_halcyon_color")
+	shelter_door_l = AnimatableBody3D.new()
+	shelter_door_r = AnimatableBody3D.new()
 	root.add_child(shelter_door_l)
 	root.add_child(shelter_door_r)
 	for pair in [[shelter_door_l, -1.0], [shelter_door_r, 1.0]]:
 		var dn: Node3D = pair[0]
 		var s: float = pair[1]
-		dn.position = Vector3(0.3, 0, s * 1.6)
-		var slab := AnimatableBody3D.new()
-		slab.set_meta("surface", "metal")
-		dn.add_child(slab)
+		dn.set_meta("surface", "metal")
+		# closed: each leaf spans 0..3.6 from the centre line, 0.1 into the side pier and 0.15 up into the header
+		dn.position = Vector3(0.3, 0, s * DOOR_CLOSED_Z)
 		var mi := MeshInstance3D.new()
 		var bm := BoxMesh.new()
-		bm.size = Vector3(0.7, 5.4, 3.2)
+		bm.size = Vector3(0.7, 6.15, 3.6)
 		mi.mesh = bm
 		mi.material_override = door_mat
-		mi.position = Vector3(0, 2.7, 0)
-		slab.add_child(mi)
+		mi.position = Vector3(0, 6.15 * 0.5, 0)
+		dn.add_child(mi)
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
 		bs.size = bm.size
 		cs.shape = bs
 		cs.position = mi.position
-		slab.add_child(cs)
+		dn.add_child(cs)
 		for k in 5:
-			var sb := Geo.box(dn, Vector3(-0.36, 0.5 + k * 1.1, 0), Vector3(0.02, 0.25, 3.0), stripe, false)
+			var sb := Geo.box(dn, Vector3(-0.36, 0.5 + k * 1.1, 0), Vector3(0.02, 0.25, 3.4), stripe, false)
 			sb.rotation.x = 0.5 * s
-	Geo.decal_quad(root, Vector3(-0.08, 3.4, 0), Vector2(2.2, 2.2), Mats.gen("logo_halcyon_color"), Vector3(0, -PI * 0.5, 0))
+		# each leaf carries its half of the emblem, so it parts with the doors instead of hanging in the doorway
+		var half := logo.duplicate() as StandardMaterial3D
+		half.uv1_scale = Vector3(0.5, 1, 1)
+		half.uv1_offset = Vector3(0.0 if s < 0 else 0.5, 0, 0)
+		Geo.decal_quad(dn, Vector3(-0.38, 3.4, -s * (DOOR_CLOSED_Z - 0.55)), Vector2(1.1, 2.2), half, Vector3(0, -PI * 0.5, 0))
 	spots["shelter_logo"] = root.to_global(Vector3(-0.08, 3.4, 0))
 	# floodlights + klaxon
 	for side in [-1.0, 1.0]:
@@ -740,10 +763,14 @@ func _shelter_portal() -> void:
 	spots["bluff_view"] = root.to_global(Vector3(-24.0, 0.1, 0))
 
 
+const DOOR_CLOSED_Z := 1.8  # leaf centre offset when shut (leaves 3.6 wide; opening half-width 3.5)
+const DOOR_OPEN_Z := 5.45   # leaf spans 3.65..7.25: fully inside the side pier (z 3.5..8.5)
+
+
 func open_shelter_doors(open: bool, dur := 5.0) -> void:
 	var tw := create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
-	tw.tween_property(shelter_door_l, "position:z", -4.7 if open else -1.6, dur)
-	tw.tween_property(shelter_door_r, "position:z", 4.7 if open else 1.6, dur)
+	tw.tween_property(shelter_door_l, "position:z", -(DOOR_OPEN_Z if open else DOOR_CLOSED_Z), dur)
+	tw.tween_property(shelter_door_r, "position:z", DOOR_OPEN_Z if open else DOOR_CLOSED_Z, dur)
 
 
 # ------------------------------------------------------------------ lighthouse

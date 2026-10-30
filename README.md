@@ -16,7 +16,7 @@ To work on it, open this folder in Godot 4.7 and press F5. The game starts in fu
 | W A S D | Move |
 | Mouse | Look |
 | Shift | Sprint |
-| Ctrl / C | Crouch |
+| Ctrl / C | Crouch (toggles; switch to hold under Settings) |
 | Space | Jump |
 | E | Use / talk / read / skip a line |
 | 1–4 | Pick a dialogue choice |
@@ -25,12 +25,12 @@ To work on it, open this folder in Godot 4.7 and press F5. The game starts in fu
 | Left mouse | Fire |
 | Right mouse | Aim (rifle: scope) |
 | R | Reload |
-| Q | **SureShot**: freeze time and target body parts (costs Focus). In SureShot: click a part or press 1–4 to queue shots, A/D to switch target, Space to fire, Q to cancel |
 | X | Use the best healing item |
 | F | Flashlight |
 | T | Pocket radio (once Tuppence gives it back) |
 | Tab | Field Journal: quests, items, magazines, character, radio |
 | Esc | Pause / settings |
+| F12 | **Playtest note**: screenshot + a typed note, saved to `playtest/<date>/` (`notes.md` + JPGs) for review |
 
 ## What's in it
 
@@ -56,8 +56,9 @@ To work on it, open this folder in Godot 4.7 and press F5. The game starts in fu
 - **2D art:** magazines, posters, signs, TV graphics and wallpapers, generated with Python/Pillow (`tools/art`).
 - **Music:** composed in code and rendered with the GeneralUser GS SoundFont (see `assets/audio/AUDIO.md`).
 - **Sound effects:** synthesized (`tools/audio`).
-- **Voices:** Microsoft neural TTS via `edge-tts` (`tools/gen_voice.py`). To regenerate after editing `data/lines.txt`, run
-  `tools\.venv\Scripts\python tools\gen_voice.py`.
+- **Voices:** [ElevenLabs](https://elevenlabs.io) (`tools/gen_voice_eleven.py`). After editing `data/lines.txt`, run
+  `tools\.venv\Scripts\python tools\gen_voice_eleven.py`. It only regenerates changed lines (`--dry` shows the credit cost).
+  `tools/gen_voice.py` (free edge-tts) is the fallback for lines that have no file yet.
 
 ## For development
 

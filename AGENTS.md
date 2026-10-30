@@ -46,7 +46,14 @@ assets are CC0 Poly Haven models and textures. All other art, audio and voices a
      `--hour=`, `--weather=`, `--nosky`.
 4. **Viewing results:** use `tools/.venv/Scripts/python tools/montage.py out.png a.png b.png ... [--w 640]` to tile captures,
    then view the tile with an image reader. Captures are 2560x1440.
-5. **Never deliver without:** a clean compile check plus an `--auto` run through any chapter you touched, with no `SCRIPT ERROR`.
+   - **Shelter checks:** `... --path . res://tests/shelter/shelter_tour.tscn -- --mode=walk|views|audit|leaks --era=before|after`.
+     `walk` drives the player (simulated input) out of the portal, back in and down the ramp; `views` writes
+     `shots/sh_<era>_<view>.png`; `audit` lists floating props; `leaks` ray-casts for holes to the outside.
+     Rerun these after changing `shelter.gd` or the portal in `town.gd`.
+5. **Owner playtest notes:** the owner presses F12 in game; each note lands in `playtest/<date>/notes.md` (with JPGs) and
+   `notes.jsonl`. Each entry has a `repro` string: `... --path . -- --shot=view --view=x,y,z,yaw,pitch --era= --hour=`
+   re-renders the exact view to `shots/view.png`. `playtest/` is gitignored and has a `.gdignore`.
+6. **Never deliver without:** a clean compile check plus an `--auto` run through any chapter you touched, with no `SCRIPT ERROR`.
 
 **Important timing gotcha.** Building a world blocks for ~2–4 s, and shader compilation hitches for ~2 s after that. During
 those first frames, `_process` barely runs. A capture taken less than ~12 s after a world build can show half-initialised
@@ -79,10 +86,12 @@ src/world/{geo,mats,props,foliage,fx}.gd   Geometry helpers, material cache, Pol
 src/world/sky/              SkyWeather (time of day, weather, bloom event, exposure) + Ocean. See src/world/sky/README.md
 src/player/player.gd        FPS controller, footsteps by surface, interaction ray, flashlight, damage, look_toward()
 src/player/weapons.gd       Viewmodels (Poly Haven pistol/rifle), hitscan, recoil, reloads, FX, decals
-src/player/sureshot.gd      SureShot (the VATS-like mode)
+src/player/view_arm.gd      First-person arm + hand (procedural) used by the viewmodels
+src/ui/feedback.gd          F12 playtest notes: screenshot + note -> playtest/<date>/notes.md, notes.jsonl (has a repro line)
 src/actors/tuppence.gd      Companion controller (goto/follow/stay, barks, zapper) driving TuppenceModel
 src/actors/enemy.gd         Enemy AI/damage/loot driving Mite/Husk/Thornback models
 src/actors/models/, fx/     Procedural character models + BloomKit/ZapArc. See src/actors/models/README.md
+                            human_model.gd = HumanModel, skinned people (~7k tris); built, not yet used by the story
 src/props/                  Interactable, Door, StarlightTV (+ crt.gdshader), RadioSet, PocketRadio, Pickup
 src/ui/                     hud.gd, dialogue.gd (cinematic camera + choices), journal.gd (Tab), menu.gd (title/pause/settings),
                             reader.gd (documents)
@@ -109,8 +118,9 @@ tests/                      compile check, model gallery, actor/sky/gun test sce
   - Many files are *sets*. Use `pick` with a node name; `tests/gallery` lists node names and sizes.
   - Models over 150k polygons were removed. Don't re-add the trees; they run up to 17M polygons.
 - **Sound:** use `Audio.sfx("name")`. Files `name_1..N.ogg` are picked at random. Missing sounds fail silently.
-- **Voice:** add a line to `data/lines.txt`, then run `tools/.venv/Scripts/python tools/gen_voice.py` (edge-tts neural voices).
-  Speaker → voice mapping is in that script; speaker → audio bus and display name are in `audio.gd`.
+- **Voice:** add a line to `data/lines.txt`, then run `tools/.venv/Scripts/python tools/gen_voice_eleven.py` (ElevenLabs).
+  A new speaker needs an entry in `CAST` there and in `VOICES` in `tools/gen_voice.py` (which parses the file). Speaker → voice
+  mapping is in those scripts; speaker → audio bus and display name are in `audio.gd`.
 - **Quests:** `Game.quest_start(id, title)`, `Game.objective(qid, oid, text, target_node_or_vec3, optional)`,
   `objective_done`, `quest_complete`. The HUD compass and waypoint read `Game.active_targets()`.
 - **Story waits:** use the helpers `until_near`, `use_of(interactable)`, `taken(pickup)` and `until_dead(list)` rather than
@@ -123,7 +133,13 @@ tests/                      compile check, model gallery, actor/sky/gun test sce
 
 - **Underground spaces:** the heightmap collider pushes bodies below its surface back up. That is why the terrain
   collision has a NaN hole over `x 178..262, z -128..-68`. Keep the shelter inside it, or move the hole with it.
-- **The portal pad (`blend 1.5`)** keeps the terrain slope from cutting through the shelter entry hall.
+- **The portal pad (`blend 1.5`)** keeps the terrain slope from cutting through the shelter entry hall. Road lowering is
+  skipped behind the portal face (`Layout.height_exact`), and `terrain.gd` leaves a visual notch at the doorway
+  (x 178..180, z -100..-90). A steel sill + apron in `town.gd` bridge the collider edge at x 178 to the hall floor.
+- **Moving colliders:** move the `AnimatableBody3D` itself. Moving its parent leaves the collider behind; that is how
+  the shelter doors once stayed solid after opening.
+- **Step-up:** the capsule alone can't climb a ledge over ~11 cm, so `Player._step_up()` lifts it over ledges up to
+  `STEP` (0.36 m) and eases the camera. `tests/shelter/shelter_tour.tscn -- --mode=kerb` walks across Gull Lane both ways.
 - **Viewmodels:** depth-squashing the Weapons node (`scale.z = 0.55`) stands in for a separate viewmodel FOV. A SubViewport
   approach failed because auto-exposure can't be shared. Each weapon's `hip`/`ads`/`hip_rot` live in `weapons.gd` `DEFS`.
 - **Static `--shot` mode** builds the world inside `main._ready`. Story mode is the more faithful runtime; use `test_*`
@@ -142,7 +158,22 @@ tests/                      compile check, model gallery, actor/sky/gun test sce
 | Foliage alpha textures | `tools/foliage/gen_foliage.py` | `assets/textures/foliage` |
 | Music + radio songs | `tools/audio/gen_music.py` | `assets/audio/music` |
 | Sound effects | `tools/audio/gen_sfx.py` (`analyze.py all` checks levels/loops) | `assets/audio/sfx` (+ `AUDIO.md`) |
-| Voices | `tools/gen_voice.py` | `assets/audio/voice` |
+| Voices | `tools/gen_voice_eleven.py` (ElevenLabs; `tools/gen_voice.py` = edge-tts fallback) | `assets/audio/voice` |
+
+**ElevenLabs API (set up and verified 2026-10-29):** the owner's key is in `.env` at the repo root as `ELEVENLABS_API_KEY`.
+`.env` is gitignored; `.env.example` is the template. You can use the key for asset generation without asking.
+- **Check it:** `tools/.venv/Scripts/python tools/eleven_api.py` prints the tier and credits used/limit.
+- **Use it:** `from eleven_api import session, API`, then `session().post(API + "/v1/...")`. The helper sends the `xi-api-key`
+  header. Scripts in `tools/` can import it directly. From a subfolder, add `tools/` to `sys.path` first.
+- **Allowed:** text-to-speech, sound effects, music and voice listing. Not allowed: `models_read` (model listing returns 401;
+  pick model ids from the ElevenLabs docs instead).
+- **Credits are real money:** the account is on the Creator plan with a monthly credit limit shared across everything. Check
+  usage before big batch jobs. Cache outputs and skip files that already exist, as `gen_voice.py` does, so reruns cost nothing.
+- **Never** print, log, commit or hard-code the key. Don't install the official SDK under the name `elevenlabs.py`; the helper
+  is named `eleven_api.py` to avoid that clash.
+- **Voices use it:** `tools/gen_voice_eleven.py` (cast + settings in `CAST`, model `eleven_multilingual_v2`). It levels every
+  file to -19 dB speech RMS (what the edge-tts files had) and records a hash per file in `tools/eleven_voice_manifest.json`,
+  so reruns only pay for changed lines. Run with `--dry` first to see the cost. All 170 files were generated 2026-10-29.
 
 **Python environment:** `python -m venv tools/.venv`, then `tools/.venv/Scripts/pip install numpy scipy pillow requests edge-tts soundfile`.
 
@@ -153,16 +184,28 @@ tests/                      compile check, model gallery, actor/sky/gun test sce
 
 ## Known issues / good next tasks
 
-1. **No first-person hands.** Weapons float. Biggest visual gap in combat.
+**Current status:** see `docs/HANDOFF.md`.
+
+**Planned and approved, not started:** the new opening (Comet Night prologue, Saturday on the pier, stasis-pod sleep). See
+`docs/PLAN_new_opening.md`; wait for the owner to say go.
+
+1. **First-person hands are a first pass.** `src/player/view_arm.gd` builds each arm (a skinned hand with jointed fingers,
+   the forearm and a rolled cardigan sleeve, ~2.6k tris) as a child of the gun rig. Grips, reload and bolt poses and the
+   elbow points live in `weapons.gd` `HANDS`, and `_update_arms()` blends them. The viewmodel renders on `Player.VM_LAYER`,
+   which the flashlight skips. Test bench: `res://tests/gun/hands_test.tscn -- --specs=pistol/hip/day/fp,...`.
+   Rough edges: the skin still looks a little smooth and plastic, the rifle's bolt-grab hand looks large and flat from
+   the eye, the reload hand during rifle loading leaves through the right edge, and the pistol's left grip panel shows
+   between the hands at hip.
 2. **Neighbour houses and shops are exterior shells.** Only the home, the shelter and the Civil Defense post have usable
    interiors.
 3. **Tuppence moves kinematically with no pathfinding.** He can float through walls when following you out of a building;
    follow mode teleports him if he falls far behind.
 4. **Story inconsistency:** June's dialogue says she shared Ward A with you, but there is no Ward B; Ward A is the only ward.
-5. **Untuned by a real player:** enemy and weapon numbers (`Enemy.STATS`, `weapons.gd DEFS`) and SureShot hit chances have
-   never been balanced with a human playing.
-6. **Audio has only been verified by measurement:** no one has listened to it. The voices are TTS; the owner has an ElevenLabs
-   account if better voices are wanted.
+5. **Untuned by a real player:** enemy and weapon numbers (`Enemy.STATS`, `weapons.gd DEFS`) have never been
+   balanced with a human playing.
+6. **Audio has only been verified by measurement:** no one has listened to it. Voices are now ElevenLabs; the voice casting
+   in `gen_voice_eleven.py` was picked from voice descriptions and needs a listen. Music fades out near a playing radio
+   (`Audio._radio_presence`) so radio songs don't clash with the score.
 7. **High draw-call count (~4–9k)** because every `Geo.box` is its own MeshInstance. Merging static geometry per building
    would help on weaker GPUs.
 8. **Large pack:** the `.pck` is ~830 MB. Lowering texture import sizes or compressing audio would cut it.

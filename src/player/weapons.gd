@@ -18,6 +18,39 @@ const DEFS := {
 	},
 }
 
+const ViewArm := preload("res://src/player/view_arm.gd")
+
+## First-person hands, per weapon, in rig space. A hand pose is the wrist position, the direction the
+## fingers point, the direction the back of the hand faces, and finger curls (ViewArm.apply_pose layout:
+## 4 x [spread, mcp, pip, dip] index..little, then thumb [cmc_flex, cmc_swing, cmc_roll, mcp, ip]).
+## "elbow_*" are camera-space points below the screen (hip, ADS) that the forearms swing toward, so the
+## arms always leave through the bottom edge whatever the gun is doing.
+const HANDS := {
+	"pistol": {
+		"r": {"pos": Vector3(0.0204, -0.0278, 0.0896), "fwd": Vector3(0.15, 0, -1), "up": Vector3(1, 0, 0.15),
+			"curl": [5, 12, 25, 10, 0, 26, 50, 35, 0, 19, 59, 28, 0, 7, 45, 22, 21, 40, 70, 52, 29]},
+		"l": {"pos": Vector3(-0.0771, -0.0446, 0.0622), "fwd": Vector3(0.5, -0.1, -1), "up": Vector3(-1, 0, -0.5),
+			"curl": [3, -5, 55, 40, 0, -5, 62, 35, 0, -5, 58, 40, -3, -5, 50, 40, 3, -18, -45, -10, -10]},
+		"l_mag": {"pos": Vector3(-0.0166, -0.0922, 0.0536), "fwd": Vector3(0.4, 0.1, -1), "up": Vector3(0, -1, 0),
+			"curl": [4, 12, 18, 10, 0, 12, 20, 10, -4, 14, 22, 12, -8, 16, 24, 14, 10, 10, 0, 8, 6]},
+		"elbow_r": [Vector3(0.32, -0.42, 0.02), Vector3(0.22, -0.4, 0.06)],
+		"elbow_l": [Vector3(-0.06, -0.44, 0.0), Vector3(-0.2, -0.4, 0.06)],
+	},
+	"rifle": {
+		"r": {"pos": Vector3(0.0535, 0.055, 0.4757), "fwd": Vector3(-0.3, -0.7, -0.65), "up": Vector3(1, 0.2, 0.05),
+			"curl": [-15, -8, 38, 60, -5, 11, 62, 49, -5, 10, 50, 24, -5, -8, 35, 20, 8, -4, 70, -10, 18]},
+		"l": {"pos": Vector3(-0.0687, -0.018, 0.0975), "fwd": Vector3(0.75, 0.15, -0.65), "up": Vector3(-0.2, -1, 0),
+			"curl": [-10, -5, 40, 40, -5, -4, 71, 33, 1, 7, 75, 10, -5, 15, 63, 17, 4, -23, 48, -10, -10]},
+		"r_bolt": {"pos": Vector3(0.0833, -0.0786, 0.262), "fwd": Vector3(-0.517, 0.75, -0.413), "up": Vector3(0.215, -0.353, -0.911),
+			"curl": [0, 30, 75, 40, 0, 55, 90, 50, 0, 65, 95, 50, 0, 70, 95, 50, 25, 15, 0, 20, 15]},
+		"r_load": {"pos": Vector3(0.0903, 0.0006, 0.2894), "fwd": Vector3(-0.119, 0.226, -0.967), "up": Vector3(0.988, -0.067, -0.137),
+			"curl": [0, 35, 50, 30, 0, 45, 65, 40, 0, 50, 75, 45, 0, 55, 80, 45, 20, 20, 0, 0, 5]},
+		"elbow_r": [Vector3(0.34, -0.32, 0.06), Vector3(0.26, -0.3, 0.08)],
+		"elbow_l": [Vector3(-0.1, -0.46, -0.02), Vector3(-0.14, -0.42, 0.0)],
+	},
+}
+const RELAXED := [8, 15, 20, 10, 2, 18, 24, 12, -4, 20, 26, 12, -10, 22, 28, 14, 10, 5, 0, 10, 10]
+
 var player: Node3D
 var current := ""
 var mags := {"pistol": 8, "rifle": 5}
@@ -38,6 +71,35 @@ var _flash_mesh: MeshInstance3D
 var _decals: Array = []
 static var _hole_tex: ImageTexture
 var lowered := false  # true in safe areas (cozy home)
+# first-person arms of the drawn weapon, their poses (see HANDS) and animation blends
+var arms := {}  # weapon -> {r, l: ViewArm, xf_*: Transform3D, c_*: PackedFloat32Array, e_*: elbow points}
+var _arm_r: ViewArm
+var _arm_l: ViewArm
+var _buf_r := PackedFloat32Array()
+var _buf_l := PackedFloat32Array()
+var _anim_rot := Vector3.ZERO  # extra rig rotation / offset for reloads and bolt work, added in _process
+var _anim_pos := Vector3.ZERO
+const BOLT_TILT := Vector3(0.05, -0.12, 0.32)  # rig tilt while working the bolt (action turned toward the eye)
+const BOLT_SHIFT := Vector3(-0.05, 0.04, 0.0)
+const RELOAD_TILT := Vector3(0.12, -0.1, 0.75)  # rifle: open action turned up toward the eye while loading
+const RELOAD_SHIFT := Vector3(-0.05, 0.07, 0.0)
+var _bolt_b: Node3D
+var _bolt_rest := Transform3D.IDENTITY  # bolt parts' rest transforms (holder space) and the holder itself
+var _bolt_b_rest := Transform3D.IDENTITY
+var _holder_xf := Transform3D.IDENTITY
+const BOLT_AXIS := Vector3(0, 0.052, 0)  # a point on the rifle bore (rig space); the bolt turns about it
+const BOLT_TRAVEL := 0.07
+const BOLT_TURN := 1.05  # handle lift, radians
+const BOLT_KNOB := Vector3(0.038, 0.022, 0.276)  # bolt handle knob at rest (rig space)
+var _bolt_open := 0.0  # 0 = closed, 1 = pulled back
+var _bolt_lift := 0.0  # 0 = handle down, 1 = handle up
+var _r_bolt := 0.0  # right hand: grip -> bolt handle
+var _r_load := 0.0  # right hand: bolt handle -> thumb over the open action
+var _r_push := 0.0  # thumb pressing a round down
+var _r_away := 0.0  # right hand off screen (fetching a round)
+var _l_mag := 0.0  # left hand: support -> palm under the magazine well
+var _l_away := 0.0  # left hand off screen (fetching a magazine)
+var _trigger := 0.0  # index finger squeeze
 
 
 const DEPTH_SQUASH := 0.55  # compress viewmodels along the view axis = narrower apparent FOV
@@ -45,6 +107,10 @@ const DEPTH_SQUASH := 0.55  # compress viewmodels along the view axis = narrower
 
 func setup(p: Node3D) -> void:
 	player = p
+	# the viewmodel (gun + arms) lives on its own render layer so the shoulder flashlight, which sits
+	# right beside the hands, doesn't blow them out; every other light still reaches it
+	if p is Player and (p as Player).flashlight:
+		(p as Player).flashlight.light_cull_mask &= ~Player.VM_LAYER
 	position = Vector3.ZERO
 	scale = Vector3(1, 1, DEPTH_SQUASH)
 	_flash_light = OmniLight3D.new()
@@ -93,6 +159,7 @@ func equip(w: String) -> void:
 		rigs[w] = _build_rig(w)
 	_rig = rigs[w]
 	_rig.visible = true
+	_use_arms(w)
 	var d: Dictionary = DEFS[w]
 	_rig.position = d.hip + Vector3(0, -0.35, 0)
 	Audio.sfx("pistol_slide" if w == "pistol" else "rifle_bolt_close", -8.0)
@@ -157,48 +224,175 @@ func _build_rig(w: String) -> Node3D:
 				holder.add_child(dup2)
 				if n.ends_with("bolt_a"):
 					_bolt = dup2
+					_bolt_rest = dup2.transform
+				elif n.ends_with("bolt_b"):
+					_bolt_b = dup2
+					_bolt_b_rest = dup2.transform
 		inst2.free()
 		holder.rotation_degrees = Vector3(0, 90, 0)
 		holder.position = Vector3(0, 0.0, 0.05)
+		_holder_xf = holder.transform
 	for m in rig.find_children("*", "GeometryInstance3D", true, false):
 		(m as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		(m as GeometryInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	if Game.shot_args.has("hands"):
-		_add_hands(rig, w)
+		(m as GeometryInstance3D).layers = Player.VM_LAYER
+	_add_arms(rig, w)
 	rig.set_meta("muzzle", Vector3(0, 0.03, -0.2) if w == "pistol" else Vector3(0, 0.03, -0.75))
 	return rig
 
 
-func _add_hands(rig: Node3D, w: String) -> void:
-	var glove := StandardMaterial3D.new()
-	glove.albedo_color = Color(0.22, 0.15, 0.1)
-	glove.roughness = 0.65
-	var sleeve := StandardMaterial3D.new()
-	sleeve.albedo_color = Color(0.32, 0.3, 0.26)
-	sleeve.roughness = 0.95
-	var right := Node3D.new()
-	rig.add_child(right)
-	right.position = Vector3(0.0, -0.075, 0.07) if w == "pistol" else Vector3(0.0, -0.07, 0.12)
-	_capsule(right, Vector3(0, 0, 0), Vector3(0.045, 0.1, 0.05), glove, Vector3(-15, 0, 0))
-	_capsule(right, Vector3(0.0, -0.03, 0.2), Vector3(0.05, 0.3, 0.05), sleeve, Vector3(-75, 0, 0))
-	var left := Node3D.new()
-	rig.add_child(left)
-	left.position = Vector3(-0.02, -0.08, 0.05) if w == "pistol" else Vector3(-0.0, -0.05, -0.28)
-	_capsule(left, Vector3(0, 0, 0), Vector3(0.045, 0.09, 0.05), glove, Vector3(-10, 0, 30))
-	_capsule(left, Vector3(-0.08, -0.04, 0.18), Vector3(0.05, 0.3, 0.05), sleeve, Vector3(-70, -25, 0))
+# ------------------------------------------------------------------ arms
+
+static func _skin_mat() -> Material:
+	if ModelKit.has_mat("vm_skin"):
+		return ModelKit.get_mat("vm_skin")
+	var m := StandardMaterial3D.new()
+	m.vertex_color_use_as_albedo = true
+	m.albedo_color = Color(0.8, 0.58, 0.47)
+	m.roughness = 0.6
+	m.metallic_specular = 0.42
+	m.roughness_texture = ModelKit.noise_tex("vm_skin_rough", 0.08, ModelKit.grad([Color(0.7, 0.7, 0.7), Color(1, 1, 1)], [0.0, 1.0]), false, 4.0, 128, 4, 11)
+	m.normal_enabled = true
+	m.normal_texture = ModelKit.noise_tex("vm_skin_n", 0.25, null, true, 1.0, 128, 3, 12)
+	m.normal_scale = 0.15
+	m.uv1_scale = Vector3(3, 6, 1)
+	# skin: screen-space subsurface scattering plus a little back-light so thin fingers glow red against a light
+	m.subsurf_scatter_enabled = true
+	m.subsurf_scatter_strength = 0.35
+	m.subsurf_scatter_skin_mode = true
+	m.backlight_enabled = true
+	m.backlight = Color(0.25, 0.07, 0.04)
+	return ModelKit.put_mat("vm_skin", m)
 
 
-func _capsule(parent: Node3D, pos: Vector3, size: Vector3, mat: Material, rot: Vector3) -> void:
-	var mi := MeshInstance3D.new()
-	var cm := CapsuleMesh.new()
-	cm.radius = size.x
-	cm.height = size.y + size.x * 2.0
-	mi.mesh = cm
-	mi.material_override = mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	parent.add_child(mi)
-	mi.position = pos
-	mi.rotation_degrees = rot
+static func _knit_mat() -> Material:
+	if ModelKit.has_mat("vm_knit"):
+		return ModelKit.get_mat("vm_knit")
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.25, 0.31, 0.26)
+	m.roughness = 0.95
+	m.diffuse_mode = BaseMaterial3D.DIFFUSE_LAMBERT_WRAP
+	m.albedo_texture = ModelKit.noise_tex("fabric_mottle", 0.03, ModelKit.grad([Color(0.78, 0.78, 0.78), Color(1, 1, 1)], [0.0, 1.0]))
+	var n := ModelKit.load_tex("res://assets/textures/fabric_pattern_05/fabric_pattern_05_nor_gl.jpg")
+	if n:
+		m.normal_enabled = true
+		m.normal_texture = n
+		m.normal_scale = 1.0
+	m.uv1_scale = Vector3(5, 3, 1)
+	return ModelKit.put_mat("vm_knit", m)
+
+
+static func _hand_xf(h: Dictionary) -> Transform3D:
+	var z: Vector3 = -(h.fwd as Vector3).normalized()
+	var y: Vector3 = h.up
+	y = (y - z * y.dot(z)).normalized()
+	return Transform3D(Basis(y.cross(z), y, z), h.pos)
+
+
+func _add_arms(rig: Node3D, w: String) -> void:
+	var h: Dictionary = HANDS[w]
+	var a := {}
+	for side in ["r", "l"]:
+		var arm := ViewArm.new()
+		arm.name = "arm_" + side
+		rig.add_child(arm)
+		arm.build(side == "l", _skin_mat(), _knit_mat(), Player.VM_LAYER)
+		a[side] = arm
+	for k in h:
+		var v: Variant = h[k]
+		if v is Dictionary:
+			a["xf_" + k] = _hand_xf(v)
+			a["c_" + k] = PackedFloat32Array(v.curl)
+		else:
+			a["e_" + k] = v
+	a["c_relax"] = PackedFloat32Array(RELAXED)
+	arms[w] = a
+
+
+func _use_arms(w: String) -> void:
+	var a: Dictionary = arms[w]
+	_arm_r = a.r
+	_arm_l = a.l
+	_buf_r.resize(ViewArm.POSE_SIZE)
+	_buf_l.resize(ViewArm.POSE_SIZE)
+	_bolt_open = 0.0
+	_bolt_lift = 0.0
+	_r_bolt = 0.0
+	_r_load = 0.0
+	_r_push = 0.0
+	_r_away = 0.0
+	_l_mag = 0.0
+	_l_away = 0.0
+	_anim_rot = Vector3.ZERO
+	_anim_pos = Vector3.ZERO
+	_update_arms()
+
+
+## Places both hands on the current gun, blends the reload / bolt poses, and swings the forearms toward
+## their elbow points so the arms leave through the bottom of the screen. No allocations.
+func _update_arms() -> void:
+	if _arm_r == null or _rig == null:
+		return
+	var a: Dictionary = arms[current]
+	var aim := _ease(_aim)
+	var to_rig := _rig.transform.basis.inverse()
+	# right hand
+	var xr: Transform3D = a.xf_r
+	var cr: PackedFloat32Array = a.c_r
+	for i in ViewArm.POSE_SIZE:
+		_buf_r[i] = cr[i]
+	if a.has("xf_r_bolt") and _r_bolt > 0.0:
+		# the hand rides the knob but only turns a little with it, so the forearm still drops off screen
+		var knob := _bolt_delta() * BOLT_KNOB
+		var hr := Basis(Vector3.BACK, 0.3 * BOLT_TURN * _bolt_lift)
+		var xb: Transform3D = Transform3D(hr, knob - hr * BOLT_KNOB) * (a.xf_r_bolt as Transform3D)
+		var cb: PackedFloat32Array = a.c_r_bolt
+		if _r_load > 0.0:
+			var xl: Transform3D = a.xf_r_load
+			xl.origin += Vector3(0, -0.014 * _r_push, -0.01 * _r_push)
+			xb = xb.interpolate_with(xl, _r_load)
+		xr = xr.interpolate_with(xb, _r_bolt)
+		var cl: PackedFloat32Array = a.c_r_load
+		for i in ViewArm.POSE_SIZE:
+			_buf_r[i] = lerpf(cr[i], lerpf(cb[i], cl[i], _r_load), _r_bolt)
+	if _r_away > 0.0:
+		xr.origin += to_rig * Vector3(0.12, -0.32, 0.1) * _r_away
+	_buf_r[2] += 14.0 * _trigger
+	_buf_r[3] += 10.0 * _trigger
+	_arm_r.transform = xr
+	_arm_r.apply_pose(_buf_r)
+	# left hand
+	var xl2: Transform3D = a.xf_l
+	var cl2: PackedFloat32Array = a.c_l
+	if a.has("xf_l_mag") and _l_mag > 0.0:
+		xl2 = xl2.interpolate_with(a.xf_l_mag, _l_mag)
+	var cm: PackedFloat32Array = a.get("c_l_mag", cl2)
+	var cx: PackedFloat32Array = a.c_relax
+	for i in ViewArm.POSE_SIZE:
+		_buf_l[i] = lerpf(lerpf(cl2[i], cm[i], _l_mag), cx[i], _l_away)
+	if _l_away > 0.0:
+		xl2.origin += to_rig * Vector3(-0.06, -0.34, 0.08) * _l_away
+	_arm_l.transform = xl2
+	_arm_l.apply_pose(_buf_l)
+	# forearms toward the elbows (camera space, which is this node's parent)
+	var cam_xf := (get_parent() as Node3D).global_transform
+	var er_h: Vector3 = (a.e_elbow_r as Array)[0]
+	var er_a: Vector3 = (a.e_elbow_r as Array)[1]
+	var el_h: Vector3 = (a.e_elbow_l as Array)[0]
+	var el_a: Vector3 = (a.e_elbow_l as Array)[1]
+	_arm_r.aim_forearm(_arm_r.global_transform.affine_inverse() * (cam_xf * er_h.lerp(er_a, aim)))
+	_arm_l.aim_forearm(_arm_l.global_transform.affine_inverse() * (cam_xf * el_h.lerp(el_a, aim)))
+	if _bolt != null and current == "rifle":
+		var hinv := _holder_xf.affine_inverse()
+		_bolt.transform = hinv * _bolt_delta() * _holder_xf * _bolt_rest
+		if _bolt_b != null:
+			_bolt_b.transform = hinv * Transform3D(Basis.IDENTITY, Vector3(0, 0, BOLT_TRAVEL * _bolt_open)) * _holder_xf * _bolt_b_rest
+
+
+## Rig-space motion of the bolt: handle turned up about the bore, then drawn back.
+func _bolt_delta() -> Transform3D:
+	var r := Basis(Vector3.BACK, BOLT_TURN * _bolt_lift)
+	return Transform3D(r, BOLT_AXIS - r * BOLT_AXIS + Vector3(0, 0, BOLT_TRAVEL * _bolt_open))
 
 
 func _rel(root: Node, n: Node3D) -> Transform3D:
@@ -217,7 +411,7 @@ func _process(delta: float) -> void:
 	var p := player as Player
 	if p == null:
 		return
-	var can: bool = p.controls_enabled() and not Game.flag("_sureshot_active")
+	var can: bool = p.controls_enabled()
 	if can:
 		if Input.is_action_just_pressed("weapon_1") and has_weapon("pistol"):
 			equip("pistol")
@@ -233,7 +427,10 @@ func _process(delta: float) -> void:
 		p.cam.fov = lerpf(base_fov, base_fov * float(DEFS[current].ads_fov), _ease(_aim))
 	else:
 		p.cam.fov = lerpf(p.cam.fov, base_fov, delta * 8.0)
-	if _rig == null or _switching:
+	if _rig == null:
+		return
+	if _switching:
+		_update_arms()
 		return
 	if can and current != "":
 		if Input.is_action_just_pressed("fire"):
@@ -261,14 +458,16 @@ func _process(delta: float) -> void:
 	if not space.intersect_ray(q).is_empty():
 		low = maxf(low, 0.7)
 	var sprinting := Input.is_action_pressed("sprint") and hv > 4.5
-	var pos := target + Vector3(_sway.x, _sway.y, 0) + bob + Vector3(0, 0, _recoil)
+	var pos := target + Vector3(_sway.x, _sway.y, 0) + bob + Vector3(0, 0, _recoil) + _anim_pos
 	if sprinting:
 		pos += Vector3(-0.06, -0.06, 0.04)
 	pos += Vector3(0, -0.15, 0.05) * low
 	_rig.position = _rig.position.lerp(pos, minf(delta * 18.0, 1.0))
 	var base_rot: Vector3 = (d.hip_rot as Vector3) * (1.0 - _ease(_aim))
 	var rot := base_rot + Vector3(_recoil_rot + (-0.35 * low) + (-0.25 if sprinting else 0.0), _sway.x * 2.0 + (0.4 if sprinting else 0.0), -_sway.x * 1.5 + (0.3 if sprinting else 0.0))
-	_rig.rotation = _rig.rotation.lerp(rot, minf(delta * 14.0, 1.0))
+	_rig.rotation = _rig.rotation.lerp(rot + _anim_rot, minf(delta * 14.0, 1.0))
+	_trigger = move_toward(_trigger, 0.0, delta * 8.0)
+	_update_arms()
 
 
 func _ease(t: float) -> float:
@@ -289,17 +488,6 @@ func try_fire() -> bool:
 	var dir := _spread_dir(DEFS[current].spread_ads if _aim > 0.5 else DEFS[current].spread_hip)
 	_fire_ray(dir, 1.0)
 	return true
-
-
-## Fire at an exact world point (SureShot). hit: whether the roll succeeded.
-func fire_at(point: Vector3, hit: bool, dmg_mult := 1.0) -> void:
-	if current == "" or mags[current] <= 0:
-		return
-	var from := (player as Player).cam.global_position
-	var dir := (point - from).normalized()
-	if not hit:
-		dir = (dir + Vector3(randf_range(-1, 1), randf_range(-0.3, 1), randf_range(-1, 1)) * 0.06).normalized()
-	_fire_ray(dir, dmg_mult)
 
 
 func _spread_dir(deg: float) -> Vector3:
@@ -328,10 +516,12 @@ func _fire_ray(dir: Vector3, dmg_mult: float) -> void:
 	Audio.sfx(d.sound, loud, 0.05)
 	var indoor := p.indoors > 0.5
 	Audio.sfx("gun_tail_indoor" if indoor else "gun_tail_outdoor", -6.0 + loud, 0.1)
-	p.kick(d.kick * (0.5 if _aim > 0.5 else 1.0), randf_range(-0.01, 0.01))
+	var rk := 0.65 if Game.magazines.has("steady_hand") else 1.0
+	p.kick(d.kick * (0.5 if _aim > 0.5 else 1.0) * rk, randf_range(-0.01, 0.01) * rk)
 	p.shake(0.25 if current == "pistol" else 0.45)
-	_recoil = 0.05 if current == "pistol" else 0.09
-	_recoil_rot = 0.18 if current == "pistol" else 0.22
+	_recoil = (0.05 if current == "pistol" else 0.09) * rk
+	_recoil_rot = (0.18 if current == "pistol" else 0.22) * rk
+	_trigger = 1.0
 	_muzzle_flash()
 	if _slide:
 		var tw := create_tween()
@@ -349,6 +539,8 @@ func _fire_ray(dir: Vector3, dmg_mult: float) -> void:
 			var actor: Object = col.get_meta("actor")
 			var part: String = col.get_meta("part")
 			var dmg: float = d.dmg * dmg_mult * (1.1 if Game.traits.has("selfreliant") else 1.0)
+			if part == "head":
+				dmg *= 1.0 + (0.5 if Game.magazines.has("detective") else 0.0) + (0.2 if Game.traits.has("keen") else 0.0)
 			if is_instance_valid(actor):
 				var target: Node = actor
 				# models may report themselves; the controller is their owner/parent
@@ -373,18 +565,24 @@ func _fire_ray(dir: Vector3, dmg_mult: float) -> void:
 
 
 func _cycle_bolt() -> void:
-	await get_tree().create_timer(0.3).timeout
-	if _bolt == null or current != "rifle":
+	await get_tree().create_timer(0.18).timeout
+	if _bolt == null or current != "rifle" or _reloading:
 		return
-	Audio.sfx("rifle_bolt_open", -4.0)
+	# right hand up to the bolt: lift, pull back (shell out), push home, turn down, back to the grip
 	var tw := create_tween()
-	var bp := _bolt.position
-	tw.tween_property(_rig, "rotation:z", 0.25, 0.12)
-	tw.parallel().tween_property(_bolt, "position", bp + Vector3(-0.07, 0, 0), 0.15)
+	tw.tween_property(self, "_r_bolt", 1.0, 0.13).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_property(self, "_anim_rot", BOLT_TILT, 0.13)
+	tw.parallel().tween_property(self, "_anim_pos", BOLT_SHIFT, 0.13)
+	tw.tween_property(self, "_bolt_lift", 1.0, 0.06)
+	tw.tween_callback(func(): Audio.sfx("rifle_bolt_open", -4.0))
+	tw.tween_property(self, "_bolt_open", 1.0, 0.13).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_callback(func(): _eject_shell(Vector3(0.03, 0.05, -0.15)))
 	tw.tween_callback(func(): Audio.sfx("rifle_bolt_close", -4.0))
-	tw.tween_property(_bolt, "position", bp, 0.15)
-	tw.parallel().tween_property(_rig, "rotation:z", 0.0, 0.2)
+	tw.tween_property(self, "_bolt_open", 0.0, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(self, "_bolt_lift", 0.0, 0.06)
+	tw.tween_property(self, "_r_bolt", 0.0, 0.18).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_property(self, "_anim_rot", Vector3.ZERO, 0.2)
+	tw.parallel().tween_property(self, "_anim_pos", Vector3.ZERO, 0.2)
 
 
 func reload() -> void:
@@ -395,40 +593,73 @@ func reload() -> void:
 		return
 	_reloading = true
 	var speed := 1.2 if Game.traits.has("steady") else 1.0
-	var rig := _rig
-	if current == "pistol":
+	var w := current
+	if w == "pistol":
+		# tip the gun in, left hand drops away for a fresh magazine, slaps it home, rack, back to grip
 		Audio.sfx("pistol_mag_out", -3.0)
 		var tw := create_tween()
-		tw.tween_property(rig, "rotation", Vector3(0.5, 0.25, 0.45), 0.25 / speed)
+		tw.tween_property(self, "_anim_rot", Vector3(0.45, -0.25, 0.35), 0.25 / speed).set_trans(Tween.TRANS_SINE)
+		tw.parallel().tween_property(self, "_l_away", 1.0, 0.25 / speed).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		tw.parallel().tween_property(self, "_l_mag", 1.0, 0.25 / speed)
 		await tw.finished
-		await get_tree().create_timer(0.45 / speed).timeout
+		await get_tree().create_timer(0.2 / speed).timeout
+		var tw1 := create_tween()
+		tw1.tween_property(self, "_l_away", 0.0, 0.25 / speed).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		await tw1.finished
 		Audio.sfx("pistol_mag_in", -3.0)
-		await get_tree().create_timer(0.35 / speed).timeout
+		var tw2 := create_tween()
+		tw2.tween_property(self, "_anim_rot:x", 0.55, 0.06)
+		tw2.tween_property(self, "_anim_rot:x", 0.45, 0.12)
+		tw2.tween_property(self, "_l_mag", 0.0, 0.17 / speed).set_trans(Tween.TRANS_SINE)
+		await tw2.finished
 		Audio.sfx("pistol_slide", -3.0)
-		var need: int = d.mag - mags[current]
+		if _slide and w == current:
+			var sp: Vector3 = _slide.position
+			var tws := create_tween()
+			tws.tween_property(_slide, "position", sp + Vector3(-0.035, 0, 0), 0.06)
+			tws.tween_property(_slide, "position", sp, 0.06)
+		var need: int = d.mag - mags[w]
 		var take: int = mini(need, Game.count(d.ammo))
 		Game.remove_item(d.ammo, take)
-		mags[current] += take
-		var tw2 := create_tween()
-		tw2.tween_property(rig, "rotation", Vector3.ZERO, 0.25 / speed)
-		await tw2.finished
-	else:
-		Audio.sfx("rifle_bolt_open", -3.0)
+		mags[w] += take
 		var tw3 := create_tween()
-		tw3.tween_property(rig, "rotation", Vector3(0.25, 0.1, 0.5), 0.25 / speed)
+		tw3.tween_property(self, "_anim_rot", Vector3.ZERO, 0.25 / speed).set_trans(Tween.TRANS_SINE)
 		await tw3.finished
+	else:
+		# right hand opens the bolt, thumbs rounds in one by one, closes it
+		var tw4 := create_tween()
+		tw4.tween_property(self, "_anim_rot", RELOAD_TILT, 0.25 / speed).set_trans(Tween.TRANS_SINE)
+		tw4.parallel().tween_property(self, "_anim_pos", RELOAD_SHIFT, 0.25 / speed).set_trans(Tween.TRANS_SINE)
+		tw4.parallel().tween_property(self, "_r_bolt", 1.0, 0.15 / speed).set_trans(Tween.TRANS_SINE)
+		tw4.tween_property(self, "_bolt_lift", 1.0, 0.05 / speed)
+		tw4.tween_callback(func(): Audio.sfx("rifle_bolt_open", -3.0))
+		tw4.tween_property(self, "_bolt_open", 1.0, 0.12 / speed)
+		tw4.tween_property(self, "_r_load", 1.0, 0.15 / speed).set_trans(Tween.TRANS_SINE)
+		await tw4.finished
+		var t: float = d.reload / speed
 		while mags["rifle"] < d.mag and Game.count(d.ammo) > 0 and current == "rifle":
-			await get_tree().create_timer(d.reload / speed).timeout
+			var tw5 := create_tween()
+			tw5.tween_property(self, "_r_away", 1.0, t * 0.3).set_trans(Tween.TRANS_SINE)
+			tw5.tween_property(self, "_r_away", 0.0, t * 0.32).set_trans(Tween.TRANS_SINE)
+			tw5.tween_property(self, "_r_push", 1.0, t * 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			tw5.tween_property(self, "_r_push", 0.0, t * 0.2)
+			await get_tree().create_timer(t * 0.8).timeout
 			Audio.sfx("rifle_round_in", -3.0)
 			Game.remove_item(d.ammo, 1)
 			mags["rifle"] += 1
 			_emit_ammo()
+			await get_tree().create_timer(t * 0.2).timeout
 			if Input.is_action_pressed("fire"):
 				break
-		Audio.sfx("rifle_bolt_close", -3.0)
-		var tw4 := create_tween()
-		tw4.tween_property(rig, "rotation", Vector3.ZERO, 0.25 / speed)
-		await tw4.finished
+		var tw6 := create_tween()
+		tw6.tween_property(self, "_r_load", 0.0, 0.12 / speed).set_trans(Tween.TRANS_SINE)
+		tw6.tween_callback(func(): Audio.sfx("rifle_bolt_close", -3.0))
+		tw6.tween_property(self, "_bolt_open", 0.0, 0.12 / speed)
+		tw6.tween_property(self, "_bolt_lift", 0.0, 0.05 / speed)
+		tw6.tween_property(self, "_r_bolt", 0.0, 0.2 / speed).set_trans(Tween.TRANS_SINE)
+		tw6.parallel().tween_property(self, "_anim_rot", Vector3.ZERO, 0.25 / speed).set_trans(Tween.TRANS_SINE)
+		tw6.parallel().tween_property(self, "_anim_pos", Vector3.ZERO, 0.25 / speed).set_trans(Tween.TRANS_SINE)
+		await tw6.finished
 	_reloading = false
 	_emit_ammo()
 

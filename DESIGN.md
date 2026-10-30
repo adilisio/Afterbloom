@@ -17,13 +17,13 @@ makes the first 20 minutes of a classic post-apocalyptic RPG work. **Original un
 | Quest guidance | Compass bar with markers, in-world waypoint diamond with distance, objective tracker, quest-start/complete banners. |
 | Collecting items feels like progress | Loot feed, XP for pickups/discoveries/kills, level-ups, magazines with perks, journal inventory. |
 | Combat solid, guns feel real | Photoscanned service pistol & bolt-action rifle, recoil/kick, ADS, reload anims, shells, impacts, layered gunshot audio with tails. |
-| VATS is cool | **SureShot** (Halcyon targeting monocle): time nearly stops, body parts show hit %, queue shots with Focus, cinematic execution. |
+| VATS is cool | Tried as **SureShot** (freeze-and-queue targeting); cut after playtest 2 ("bad VATS"). Gunplay stands on its own: recoil, ADS, headshots, perks. |
 | Unique enemy deaths | Husks shatter into crystal shards, limbs/heads burst off, mites pop in spore puffs, the Thornback collapses in a bloom eruption. |
 | Good camera for dialogue | Cinematic framing on speaker, letterbox, shallow DOF, 4 choices. |
 | Radio & DJ | Pocket transistor radio. **Larkhaven Free Radio**: DJ Rory Tuck, nervous & sweet, broadcasting alone from the lighthouse. Songs + DJ breaks. |
 | Magazines are cool | 8 collectible magazines with full covers; each grants a permanent perk. |
 | Day/night, weather | Real sky with sun/moon/stars/clouds; clear, overcast, rain, storm (lightning), and the setting's own **Bloom squall** (violet glowing spores). |
-| Voiced lines | Neural TTS for every character line; robot/radio/TV processed through audio buses. |
+| Voiced lines | ElevenLabs voices for every character line (edge-tts as the free fallback); robot/radio/TV processed through audio buses. |
 | Music not too bleak | Warm, hopeful exploration score (piano, strings, vibes) contrasting the ruined town; jaunty 1950s-60s radio songs. |
 
 ## World
@@ -34,18 +34,21 @@ makes the first 20 minutes of a classic post-apocalyptic RPG work. **Original un
   a luminous violet spore fog rolls in from the sea. Living things caught in it become **Bloomed** — crystal-flowered husks.
 - **11 years later (1978)**: the Bloom has thinned to drifting motes; violet crystal flowers grow everywhere; the town is overgrown.
 
-### Cast (voice = edge-tts neural voice)
+### Cast (voice = ElevenLabs voice; cast and settings in `tools/gen_voice_eleven.py`)
 
 | Who | Role | Voice | Bus |
 |---|---|---|---|
-| Tuppence | Halcyon Valet Mk II, the player's robot. Cheerful, proper, a little anxious, endlessly optimistic. | en-GB-RyanNeural | Robot |
-| June | Player's younger sister. Warm, teasing, brave. Phone call + recorded message. | en-US-AvaNeural | Phone |
-| Rory Tuck | Junior DJ in 1967; in 1978 the lone voice of Larkhaven Free Radio, from the lighthouse. | en-US-AndrewNeural | Radio |
-| Dot Calloway | 1967 morning DJ, sunny. | en-US-EmmaNeural | Radio |
-| Hal Brightwater | TV anchor, "Larkhaven Morning" / emergency broadcast. | en-US-ChristopherNeural | TV |
-| Registrar 9 | Halcyon shelter courier robot at the door. | en-US-EricNeural | Robot |
-| Shelter PA | "Halcyon Assurance" automated voice. | en-US-AriaNeural | PA |
-| Civil Defense | Town loudspeakers. | en-US-GuyNeural | PA |
+| Tuppence | Halcyon Valet Mk II, the player's robot. Cheerful, proper, a little anxious, endlessly optimistic. | George | Robot |
+| June | Player's younger sister. Warm, teasing, brave. Phone call + recorded message. | Sara | Phone |
+| Rory Tuck | Junior DJ in 1967; in 1978 the lone voice of Larkhaven Free Radio, from the lighthouse. | Hank Harvey | Radio |
+| Dot Calloway | 1967 morning DJ, sunny. | Matilda | Radio |
+| Hal Brightwater | TV anchor, "Larkhaven Morning" / emergency broadcast. | Brian | TV |
+| Registrar 9 | Halcyon shelter courier robot at the door. | Eric | Robot |
+| Shelter PA | "Halcyon Assurance" automated voice. | Tatiana | PA |
+| Civil Defense | Town loudspeakers. | Jay | PA |
+| Warden Haskell | Shelter warden, heard on recordings. | Michael | Phone |
+| Narrator | Cold open. | Adrian | Voice |
+| TV announcer | Ads on the morning show. | Ben | TV |
 
 ## Story & flow (~25 min)
 
@@ -64,14 +67,13 @@ makes the first 20 minutes of a classic post-apocalyptic RPG work. **Original un
 5. **Ch.4 Afterbloom** — blinding daylight (auto-exposure), overgrown Larkhaven below. Go home. Tuppence, polishing the
    same spot for 11 years, is overjoyed. He joins you and gives you your pocket radio. Rory's broadcast mentions survivors
    at the lighthouse. Journey through Harbor Square (husks, loot, rifle at the Civil Defense post, magazines) along the coast
-   road to the lighthouse. **Thornback** ambush → SureShot showdown. Rory over the intercom; the door opens; June's voice.
+   road to the lighthouse. **Thornback** ambush showdown. Rory over the intercom; the door opens; June's voice.
    *"To be continued."* Then free roam continues with day/night and weather.
 
 ## Systems
 
 - **Player**: walk/sprint/jump/crouch, head-bob, surface footsteps, interact (E), flashlight (F), journal (Tab), radio (R hold / journal).
 - **Weapons**: service pistol (8 rnd), bolt-action rifle (5 rnd, scope zoom). Hitscan, per-part damage, impact FX per surface.
-- **SureShot** (Q): Focus meter; time scale 0.03; target parts with %; click to queue; Space to execute.
 - **Enemies**: Bloom mite (small, fast, leap), Husk (shambling humanoid, lunge), Thornback (boss quadruped, charge).
 - **Companion**: Tuppence follows, idles, barks, zaps enemies (cooldown), "make tea" heals once per in-game hour.
 - **Quests**: data-driven; compass + waypoint + tracker; banners.
